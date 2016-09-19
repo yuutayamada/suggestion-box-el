@@ -113,8 +113,8 @@ Return non-nil if suggestion-box need to close."
   (let ((start (nth 1 (syntax-ppss))))
     (length (split-string (buffer-substring start (point)) ",") )))
 
-(cl-defgeneric suggestion-box-highlight (string)
-  "WIP"
+(cl-defgeneric suggestion-box-filter (string)
+  "Return filtered STRING."
   (cl-loop with nth-arg = (suggestion-box-get-nth)
            with count = 0
            with strs = (delq nil (suggestion-box-split (suggestion-box-trim string)))
@@ -131,7 +131,7 @@ Return non-nil if suggestion-box need to close."
 ;;;###autoload
 (defun suggestion-box (string)
   "Show STRING on the cursor."
-  (when-let ((str (and string (suggestion-box-highlight string))))
+  (when-let ((str (and string (suggestion-box-filter string))))
     (suggestion-box-delete)
     (suggestion-box-set-obj (suggestion-box--tip str :truncate t) string)
     (add-hook 'post-command-hook 'suggestion-box--update nil t)))
