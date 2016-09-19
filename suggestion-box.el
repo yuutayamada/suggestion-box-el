@@ -4,6 +4,7 @@
 
 ;; Author: Yuta Yamada <cokesboy"at"gmail.com>
 ;; Keywords: convenience
+;; Version: 0.0.1
 ;; Package-Requires: ((emacs "25.1") (popup "0.5.3"))
 
 ;; This program is free software; you can redistribute it and/or modify
