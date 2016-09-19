@@ -46,7 +46,6 @@
 ;;; Code:
 
 ;; TODO:
-;;  - add gif https://github.com/Malabarba/camcorder.el
 ;;  - escape comma inside strings
 ;;  - minor-mode?
 
@@ -57,7 +56,7 @@
 
 (defgroup suggestion-box nil
   "Show information on the cursor."
-  ;; :link '(url-link "http://")
+  :link '(url-link "https://github.com/yuutayamada/suggestion-box-el")
   :group 'suggestion-box)
 
 (defvar suggestion-box-data nil
