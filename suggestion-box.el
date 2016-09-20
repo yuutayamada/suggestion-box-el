@@ -72,52 +72,87 @@
   "Face for suggestion-box's tooltip."
   :group 'suggestion-box)
 
-;;;;;;;;;;;;;;;;;;;;;;;
-;; Generic functions
-;; (see also `cl-defmethod')
 
-(cl-defgeneric suggestion-box-set-obj (popup-obj original-string)
+;; API
+
+(defvar suggestion-box-backend-functions nil
+  "Special hook to find the suggestion-box backend for the current context.
+Each function on this hook is called in turn with no arguments,
+and should return either nil to mean that it is not applicable,
+or an suggestion-box backend, which is a value to be used to dispatch the
+generic functions.")
+
+(defun suggestion-box--general-backend () 'default)
+(add-hook 'suggestion-box-backend-functions #'suggestion-box--general-backend t)
+
+;;;###autoload
+(defun suggestion-box-find-backend ()
+  (run-hook-with-args-until-success 'suggestion-box-backend-functions))
+
+
+(cl-defgeneric suggestion-box-set-obj (backend popup-obj original-string)
   "Set data to `suggestion-box-data'.
 The `suggestion-box-data' has to include POPUP-OBJ and able to get
-popup object from `suggestion-box-get-popup-obj'."
+popup object from `suggestion-box-get-popup-obj'.")
+
+(cl-defgeneric suggestion-box-get-popup-obj (backend)
+  "Return suggestion-box's popup object.")
+
+(cl-defgeneric suggestion-box-get-str (backend)
+  "Return string, which is used first completion.")
+
+(cl-defgeneric suggestion-box-close-predicate (backend data)
+  "Predicate function.
+Return non-nil if suggestion-box need to close.")
+
+(cl-defgeneric suggestion-box-trim (backend string)
+  "Trim STRING.")
+
+(cl-defgeneric suggestion-box-split (backend string)
+  "Return list of string.")
+
+(cl-defgeneric suggestion-box-get-nth (backend)
+  "Return a number, which represent Nth's arg.")
+
+(cl-defgeneric suggestion-box-filter (backend string)
+  "Return filtered STRING.")
+
+;;; Default backend
+
+(cl-defmethod suggestion-box-set-obj ((_backend (eql default)) popup-obj string)
   (setq suggestion-box-data
         (list :pos (nth 1 (syntax-ppss)) ; at "(" after function
               :popup popup-obj
-              :string original-string)))
+              :string string)))
 
-(cl-defgeneric suggestion-box-get-popup-obj ()
-  "Return suggestion-box's popup object."
+(cl-defmethod suggestion-box-get-popup-obj ((_backend (eql default)))
   (plist-get suggestion-box-data :popup))
 
-(cl-defgeneric suggestion-box-get-str ()
-  "Return string, which is used first completion."
+
+(cl-defmethod suggestion-box-get-str ((_backend (eql default)))
   (plist-get suggestion-box-data :string))
 
-(cl-defgeneric suggestion-box-close-predicate (data)
-  "Predicate function.
-Return non-nil if suggestion-box need to close."
+
+(cl-defmethod suggestion-box-close-predicate ((_backend (eql default)) data)
   (not (eq (plist-get data :pos) (nth 1 (syntax-ppss)))))
 
-(cl-defgeneric suggestion-box-trim (string)
-  "Trim STRING."
+(cl-defmethod suggestion-box-trim ((_backend (eql default)) string)
   (substring string
              (cl-search "(" string)
              (1+ (cl-search ")" string :from-end t))))
 
-(cl-defgeneric suggestion-box-split (string)
-  "Return list of string."
+(cl-defmethod suggestion-box-split ((_backend (eql default)) string)
   (split-string string ", "))
 
-(cl-defgeneric suggestion-box-get-nth ()
-  "Return a number, which represent Nth's arg."
+(cl-defmethod suggestion-box-get-nth ((_backend (eql default)))
   (let ((start (nth 1 (syntax-ppss))))
     (length (split-string (buffer-substring start (point)) ",") )))
 
-(cl-defgeneric suggestion-box-filter (string)
-  "Return filtered STRING."
-  (cl-loop with nth-arg = (suggestion-box-get-nth)
+(cl-defmethod suggestion-box-filter ((_backend (eql default)) string)
+  (cl-loop with bend = 'default
+           with nth-arg = (suggestion-box-get-nth bend)
+           with strs = (delq nil (suggestion-box-split bend (suggestion-box-trim bend string)))
            with count = 0
-           with strs = (delq nil (suggestion-box-split (suggestion-box-trim string)))
            for s in strs
            do (setq count (1+ count))
            if (eq count nth-arg)
@@ -127,29 +162,33 @@ Return non-nil if suggestion-box need to close."
            else collect "." into result
            finally return (mapconcat 'identity result ", ")))
 
+;; Core
 
 ;;;###autoload
 (defun suggestion-box (string)
   "Show STRING on the cursor."
-  (when-let ((str (and string (suggestion-box-filter string))))
-    (suggestion-box-delete)
-    (suggestion-box-set-obj (suggestion-box--tip str :truncate t) string)
-    (add-hook 'post-command-hook 'suggestion-box--update nil t)))
+  (when-let ((backend (suggestion-box-find-backend)))
+    (when-let ((str (and string (suggestion-box-filter backend string))))
+      (suggestion-box-delete backend)
+      (suggestion-box-set-obj
+       backend (suggestion-box--tip str :truncate t) string)
+      (add-hook 'post-command-hook 'suggestion-box--update nil t))))
 
 (defun suggestion-box--update ()
   "Delete existing popup object inside `suggestion-box-data'."
   (when-let ((data suggestion-box-data))
-    (if (not (or (suggestion-box-close-predicate data)
-                 (eq 'keyboard-quit this-command)))
-        ;; TODO: add highlight current argument
-        (suggestion-box (suggestion-box-get-str))
-      ;; Delete popup obj
-      (suggestion-box-delete)
-      (remove-hook 'post-command-hook 'suggestion-box--update t))))
+    (when-let ((backend (suggestion-box-find-backend)))
+      (if (not (or (suggestion-box-close-predicate backend data)
+                   (eq 'keyboard-quit this-command)))
+          ;; TODO: add highlight current argument
+          (suggestion-box (suggestion-box-get-str backend))
+        ;; Delete popup obj
+        (suggestion-box-delete backend)
+        (remove-hook 'post-command-hook 'suggestion-box--update t)))))
 
-(defun suggestion-box-delete ()
+(defun suggestion-box-delete (backend)
   "Delete suggestion-box."
-  (when-let ((p (suggestion-box-get-popup-obj)))
+  (when-let ((p (suggestion-box-get-popup-obj backend)))
     (popup-delete p)))
 
 (cl-defun suggestion-box--tip (str &key truncate &aux tip width lines)
