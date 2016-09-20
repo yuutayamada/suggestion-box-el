@@ -97,15 +97,13 @@ generic functions.")
 (defun suggestion-box-find-backend ()
   (run-hook-with-args-until-success 'suggestion-box-backend-functions))
 
+(cl-defgeneric suggestion-box-get-boundary (backend)
+  "Return something to indicate boundary to delete suggestion-box later.")
 
-(cl-defgeneric suggestion-box-set-obj (backend popup-obj original-string)
-  "Set data to `suggestion-box-data'.
-The `suggestion-box-data' has to include POPUP-OBJ and able to get
-popup object from `suggestion-box-get-popup'.")
-
-(cl-defgeneric suggestion-box-close-predicate (backend)
+(cl-defgeneric suggestion-box-close-predicate (backend boundary)
   "Predicate function.
-Return non-nil if suggestion-box need to close.")
+Return non-nil if suggestion-box need to close.
+The value of BOUNDARY is that you implemented at `suggestion-box-get-boundary'.")
 
 (cl-defgeneric suggestion-box-trim (backend string)
   "Trim STRING.")
@@ -116,28 +114,26 @@ Return non-nil if suggestion-box need to close.")
 (cl-defgeneric suggestion-box-get-nth (backend)
   "Return a number, which represent Nth's arg.")
 
-(cl-defgeneric suggestion-box-filter (backend string)
-  "Return filtered STRING.")
+(cl-defgeneric suggestion-box-get-mask (backend)
+  "Return cons of strings or nil. Both car and cdr parts are used to
+hide filtered string. If nil is returned, doesn't hide.")
 
 
 
 ;;; Default backend
 
-(cl-defmethod suggestion-box-set-obj ((_backend (eql default)) popup-obj string)
-  (setq suggestion-box-obj
-        (make-instance 'suggestion-box-data
-                       :bound (nth 1 (syntax-ppss)) ; at "(" after function
-                       :popup popup-obj
-                       :content string)))
+(cl-defmethod suggestion-box-get-boundary ((_backend (eql default)))
+  (nth 1 (syntax-ppss)))
 
-(cl-defmethod suggestion-box-close-predicate ((_backend (eql default)))
-  (not (eq (suggestion-box-get-bound)
-           (nth 1 (syntax-ppss)))))
+(cl-defmethod suggestion-box-close-predicate ((_backend (eql default)) boundary)
+  (not (eq boundary (nth 1 (syntax-ppss)))))
 
 (cl-defmethod suggestion-box-trim ((_backend (eql default)) string)
   (substring string
-             (cl-search "(" string)
-             (1+ (cl-search ")" string :from-end t))))
+             (when-let ((start (cl-search "(" string)))
+               (1+ start))
+             (when-let (end (cl-search ")" string :from-end t))
+               (1- end))))
 
 (cl-defmethod suggestion-box-split ((_backend (eql default)) string)
   (split-string string ", "))
@@ -146,19 +142,9 @@ Return non-nil if suggestion-box need to close.")
   (let ((start (nth 1 (syntax-ppss))))
     (length (split-string (buffer-substring start (point)) ",") )))
 
-(cl-defmethod suggestion-box-filter ((_backend (eql default)) string)
-  (cl-loop with bend = 'default
-           with nth-arg = (suggestion-box-get-nth bend)
-           with strs = (delq nil (suggestion-box-split bend (suggestion-box-trim bend string)))
-           with count = 0
-           for s in strs
-           do (setq count (1+ count))
-           if (eq count nth-arg)
-           collect s into result
-           else if (<= (length strs) count)
-           collect "?" into result
-           else collect "." into result
-           finally return (mapconcat 'identity result ", ")))
+(cl-defmethod suggestion-box-get-mask ((_backend (eql default)))
+  (cons "." "?"))
+
 
 ;; Getters
 (defun suggestion-box-get-popup ()
@@ -180,18 +166,46 @@ Return non-nil if suggestion-box need to close.")
 ;;;###autoload
 (defun suggestion-box (string)
   "Show STRING on the cursor."
-  (when-let ((backend (suggestion-box-find-backend)))
-    (when-let ((str (and string (suggestion-box-filter backend string))))
+  (when-let ((backend (and string (suggestion-box-find-backend))))
+    (when-let ((str (suggestion-box-string-normalize backend string)))
       (suggestion-box-delete)
       (suggestion-box-set-obj
-       backend (suggestion-box--tip str :truncate t) string)
+       (suggestion-box--tip str :truncate t)
+       string
+       (suggestion-box-get-boundary backend))
       (add-hook 'post-command-hook 'suggestion-box--update nil t))))
+
+(defun suggestion-box-string-normalize (backend str)
+  (suggestion-box-filter (suggestion-box-trim backend str)))
+
+(defun suggestion-box-filter (string)
+  (cl-loop with backend = (suggestion-box-find-backend)
+           with nth-arg = (suggestion-box-get-nth backend)
+           with strs = (delq nil (suggestion-box-split backend string))
+           with count = 0
+           with mask = (suggestion-box-get-mask backend)
+           for s in strs
+           do (setq count (1+ count))
+           if (eq count nth-arg)
+           collect s into result
+           else if (<= (length strs) count)
+           collect (or (cdr mask) s) into result
+           else collect (or (car mask) s) into result
+           finally return (mapconcat 'identity result ", ")))
+
+(defun suggestion-box-set-obj (popup-obj string boundary)
+  (setq suggestion-box-obj
+        (make-instance 'suggestion-box-data
+                       :bound boundary
+                       :popup popup-obj
+                       :content string)))
 
 (defun suggestion-box--update ()
   "Delete existing popup object inside `suggestion-box-data'."
   (when-let ((data suggestion-box-obj))
     (when-let ((backend (suggestion-box-find-backend)))
-      (if (not (or (suggestion-box-close-predicate backend)
+      (if (not (or (suggestion-box-close-predicate
+                    backend (suggestion-box-get-bound))
                    (eq 'keyboard-quit this-command)))
           ;; TODO: add highlight current argument
           (suggestion-box (suggestion-box-get-str))
@@ -203,7 +217,6 @@ Return non-nil if suggestion-box need to close.")
   "Delete suggestion-box."
   (when-let ((p (suggestion-box-get-popup)))
     (popup-delete p)))
-
 
 (cl-defun suggestion-box--tip (str &key truncate &aux tip width lines)
   (when (< 1 (line-number-at-pos))
