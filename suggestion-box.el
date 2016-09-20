@@ -182,7 +182,7 @@ Return non-nil if suggestion-box need to close.")
   "Show STRING on the cursor."
   (when-let ((backend (suggestion-box-find-backend)))
     (when-let ((str (and string (suggestion-box-filter backend string))))
-      (suggestion-box-delete backend)
+      (suggestion-box-delete)
       (suggestion-box-set-obj
        backend (suggestion-box--tip str :truncate t) string)
       (add-hook 'post-command-hook 'suggestion-box--update nil t))))
@@ -196,10 +196,10 @@ Return non-nil if suggestion-box need to close.")
           ;; TODO: add highlight current argument
           (suggestion-box (suggestion-box-get-str))
         ;; Delete popup obj
-        (suggestion-box-delete backend)
+        (suggestion-box-delete)
         (remove-hook 'post-command-hook 'suggestion-box--update t)))))
 
-(defun suggestion-box-delete (_backend)
+(defun suggestion-box-delete ()
   "Delete suggestion-box."
   (when-let ((p (suggestion-box-get-popup)))
     (popup-delete p)))
