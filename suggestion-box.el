@@ -54,14 +54,12 @@
 (require 'cl-lib)
 (require 'cl-generic)
 (require 'subr-x) ; need Emacs 25.1 or later for `when-let' and `if-let'
+(require 'eieio)
 
 (defgroup suggestion-box nil
   "Show information on the cursor."
   :link '(url-link "https://github.com/yuutayamada/suggestion-box-el")
   :group 'suggestion-box)
-
-(defvar suggestion-box-data nil
-  "Will be stored popup object and other properties.")
 
 (defface suggestion-box-face
   '((((class color) (background dark))
@@ -72,8 +70,18 @@
   "Face for suggestion-box's tooltip."
   :group 'suggestion-box)
 
+(defclass suggestion-box-data ()
+  ((bound :initarg :bound)
+   (popup :type popup :initarg :popup)
+   (content :type string :initarg :content))
+  :documentation "wip")
 
-;; API
+(defvar suggestion-box-obj nil
+  "Internal variable to store popup object and other properties.")
+
+
+
+;;; API
 
 (defvar suggestion-box-backend-functions nil
   "Special hook to find the suggestion-box backend for the current context.
@@ -93,15 +101,9 @@ generic functions.")
 (cl-defgeneric suggestion-box-set-obj (backend popup-obj original-string)
   "Set data to `suggestion-box-data'.
 The `suggestion-box-data' has to include POPUP-OBJ and able to get
-popup object from `suggestion-box-get-popup-obj'.")
+popup object from `suggestion-box-get-popup'.")
 
-(cl-defgeneric suggestion-box-get-popup-obj (backend)
-  "Return suggestion-box's popup object.")
-
-(cl-defgeneric suggestion-box-get-str (backend)
-  "Return string, which is used first completion.")
-
-(cl-defgeneric suggestion-box-close-predicate (backend data)
+(cl-defgeneric suggestion-box-close-predicate (backend)
   "Predicate function.
 Return non-nil if suggestion-box need to close.")
 
@@ -117,24 +119,20 @@ Return non-nil if suggestion-box need to close.")
 (cl-defgeneric suggestion-box-filter (backend string)
   "Return filtered STRING.")
 
+
+
 ;;; Default backend
 
 (cl-defmethod suggestion-box-set-obj ((_backend (eql default)) popup-obj string)
-  (setq suggestion-box-data
-        (list :pos (nth 1 (syntax-ppss)) ; at "(" after function
-              :popup popup-obj
-              :string string)))
+  (setq suggestion-box-obj
+        (make-instance 'suggestion-box-data
+                       :bound (nth 1 (syntax-ppss)) ; at "(" after function
+                       :popup popup-obj
+                       :content string)))
 
-(cl-defmethod suggestion-box-get-popup-obj ((_backend (eql default)))
-  (plist-get suggestion-box-data :popup))
-
-
-(cl-defmethod suggestion-box-get-str ((_backend (eql default)))
-  (plist-get suggestion-box-data :string))
-
-
-(cl-defmethod suggestion-box-close-predicate ((_backend (eql default)) data)
-  (not (eq (plist-get data :pos) (nth 1 (syntax-ppss)))))
+(cl-defmethod suggestion-box-close-predicate ((_backend (eql default)))
+  (not (eq (suggestion-box-get-bound)
+           (nth 1 (syntax-ppss)))))
 
 (cl-defmethod suggestion-box-trim ((_backend (eql default)) string)
   (substring string
@@ -162,6 +160,21 @@ Return non-nil if suggestion-box need to close.")
            else collect "." into result
            finally return (mapconcat 'identity result ", ")))
 
+;; Getters
+(defun suggestion-box-get-popup ()
+  (when-let ((obj suggestion-box-obj))
+    (with-slots (popup) obj popup)))
+
+(defun suggestion-box-get-str ()
+  (when-let ((obj suggestion-box-obj))
+    (with-slots (content) obj content)))
+
+(defun suggestion-box-get-bound ()
+  (when-let ((obj suggestion-box-obj))
+    (with-slots (bound) obj bound)))
+
+
+
 ;; Core
 
 ;;;###autoload
@@ -176,20 +189,21 @@ Return non-nil if suggestion-box need to close.")
 
 (defun suggestion-box--update ()
   "Delete existing popup object inside `suggestion-box-data'."
-  (when-let ((data suggestion-box-data))
+  (when-let ((data suggestion-box-obj))
     (when-let ((backend (suggestion-box-find-backend)))
-      (if (not (or (suggestion-box-close-predicate backend data)
+      (if (not (or (suggestion-box-close-predicate backend)
                    (eq 'keyboard-quit this-command)))
           ;; TODO: add highlight current argument
-          (suggestion-box (suggestion-box-get-str backend))
+          (suggestion-box (suggestion-box-get-str))
         ;; Delete popup obj
         (suggestion-box-delete backend)
         (remove-hook 'post-command-hook 'suggestion-box--update t)))))
 
-(defun suggestion-box-delete (backend)
+(defun suggestion-box-delete (_backend)
   "Delete suggestion-box."
-  (when-let ((p (suggestion-box-get-popup-obj backend)))
+  (when-let ((p (suggestion-box-get-popup)))
     (popup-delete p)))
+
 
 (cl-defun suggestion-box--tip (str &key truncate &aux tip width lines)
   (when (< 1 (line-number-at-pos))
@@ -220,6 +234,7 @@ Return non-nil if suggestion-box need to close.")
               (popup-set-list tip lines)
               (popup-draw tip)
               tip))))))
+
 
 (provide 'suggestion-box)
 ;;; suggestion-box.el ends here
