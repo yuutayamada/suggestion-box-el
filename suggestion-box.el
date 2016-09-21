@@ -173,10 +173,15 @@ hide filtered string. If nil is returned, doesn't hide."
                (r (apply `((lambda () (rx (or (eval (list 'syntax ?\))) ,sep))))))
                (count 1))
       (while (re-search-backward r start t)
-        (if (eq ?\) (char-syntax (char-after (point))))
-            (goto-char (nth 1 (syntax-ppss)))
-          (when (not (nth 8 (syntax-ppss)))
-            (setq count (1+ count)))))
+        (let ((ppss (syntax-ppss)))
+          (if (eq ?\) (char-syntax (char-after (point))))
+              ;; 8th of ppss is start position of comment or string.
+              ;; comment would be rare case, but maybe it's
+              ;; beneficial for languages like haskell, which has
+              ;; multi-comment.
+              (goto-char (or (nth 8 ppss) (nth 1 ppss) (point)))
+            (when (not (nth 8 ppss))
+              (setq count (1+ count))))))
       count)))
 
 
