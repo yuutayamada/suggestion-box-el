@@ -137,7 +137,7 @@ hide filtered string. If nil is returned, doesn't hide.")
              (when-let ((start (cl-search "(" string)))
                (1+ start))
              (when-let (end (cl-search ")" string :from-end t))
-               (1- end))))
+               end)))
 
 (cl-defmethod suggestion-box-split ((_backend (eql default)) string)
   (split-string string ", "))
