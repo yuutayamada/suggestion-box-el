@@ -52,9 +52,11 @@
 
 (require 'popup)
 (require 'cl-lib)
-(require 'subr-x) ; need Emacs 25.1 or later for `when-let' and `if-let'
 (require 'eieio)
 (require 'rx)
+(require 'subr-x) ; need Emacs 25.1 or later for `when-let', `if-let'
+                  ; and also `alist-get' in subr.el
+
 
 (defgroup suggestion-box nil
   "Show information on the cursor."
@@ -70,8 +72,10 @@
   "Face for suggestion-box's tooltip."
   :group 'suggestion-box)
 
-(defcustom suggestion-box-error-msg "too many arguments?"
-  "Message that will be showed when you enter too many arguments."
+(defcustom suggestion-box-messages
+  '((:many-args    . "too many arguments?")
+    (:inside-paren . "_"))
+  "Messages that occasionally pop up"
   :group 'suggestion-box
   :type 'string)
 
@@ -83,7 +87,8 @@
 (defclass suggestion-box-data ()
   ((bound :initarg :bound)
    (popup :type popup :initarg :popup)
-   (content :type string :initarg :content))
+   (content :type string :initarg :content)
+   (ppss :initarg :ppss))
   :documentation "wip")
 
 (defvar suggestion-box-obj nil
@@ -107,13 +112,10 @@ generic functions.")
 (defun suggestion-box-find-backend ()
   (run-hook-with-args-until-success 'suggestion-box-backend-functions))
 
-(cl-defgeneric suggestion-box-get-boundary (backend)
-  "Return something to indicate boundary to delete suggestion-box later.")
 
-(cl-defgeneric suggestion-box-close-predicate (backend boundary)
-  "Predicate function.
-Return non-nil if suggestion-box need to close.
-The value of BOUNDARY is that you implemented at `suggestion-box-get-boundary'.")
+(cl-defgeneric suggestion-box-close-predicate (backend bound)
+  "Predicate function that returns non-nil if suggestion-box needs to close.
+The value of BOUND is that you will be implemented at `suggestion-box-get-boundary'.")
 
 (cl-defgeneric suggestion-box-trim (backend string)
   "Return trimmed string.")
@@ -124,6 +126,12 @@ The value of BOUNDARY is that you implemented at `suggestion-box-get-boundary'."
 (cl-defgeneric suggestion-box-get-nth (backend)
   "Return a number, which represent Nth's arg.")
 
+
+;; Those generic functions can be optional to implement
+(cl-defgeneric suggestion-box-get-boundary (_backend)
+  "Return something to indicate boundary to delete suggestion-box later."
+  'paren)
+
 (cl-defgeneric suggestion-box-get-mask (_backend)
   "Return cons of strings or nil. Both car and cdr parts are used to
 hide filtered string. If nil is returned, doesn't hide."
@@ -133,11 +141,8 @@ hide filtered string. If nil is returned, doesn't hide."
 
 ;;; Default backend
 
-(cl-defmethod suggestion-box-get-boundary ((_backend (eql default)))
-  (nth 1 (syntax-ppss)))
-
-(cl-defmethod suggestion-box-close-predicate ((_backend (eql default)) boundary)
-  (not (memq boundary (nth 9 (syntax-ppss)))))
+(cl-defmethod suggestion-box-close-predicate ((_backend (eql default)) _bound)
+  (not (suggestion-box-h-inside-paren-p)))
 
 (cl-defmethod suggestion-box-trim ((_backend (eql default)) string)
   (suggestion-box-h-trim string "(" ")"))
@@ -150,6 +155,9 @@ hide filtered string. If nil is returned, doesn't hide."
 
 
 ;; Helper functions
+(defun suggestion-box-h-inside-paren-p ()
+  (memq (nth 1 (suggestion-box-get-ppss)) (nth 9 (syntax-ppss))))
+
 (defun suggestion-box-h-trim (string opener closer)
   (substring string
              (when-let ((start (cl-search opener string)))
@@ -157,17 +165,20 @@ hide filtered string. If nil is returned, doesn't hide."
              (when-let (end (cl-search closer string :from-end t))
                end)))
 
-(defun suggestion-box-h-get-nth (sep)
+(defun suggestion-box-h-get-nth (sep &optional start-pos)
   (save-excursion
-    (let* ((start (suggestion-box-get-bound))
-           (r (apply `((lambda () (rx (or (eval (list 'syntax ?\))) ,sep))))))
-           (count 1))
+    (when-let ((start (if (eq 'paren (suggestion-box-get-bound))
+                          (nth 1 (suggestion-box-get-ppss))
+                        start-pos))
+               (r (apply `((lambda () (rx (or (eval (list 'syntax ?\))) ,sep))))))
+               (count 1))
       (while (re-search-backward r start t)
         (if (eq ?\) (char-syntax (char-after (point))))
             (goto-char (nth 1 (syntax-ppss)))
           (when (not (nth 8 (syntax-ppss)))
             (setq count (1+ count)))))
       count)))
+
 
 ;; Getters
 (defun suggestion-box-get-popup ()
@@ -182,6 +193,9 @@ hide filtered string. If nil is returned, doesn't hide."
   (when-let ((obj suggestion-box-obj))
     (with-slots (bound) obj bound)))
 
+(defun suggestion-box-get-ppss ()
+  (when-let ((obj suggestion-box-obj))
+    (with-slots (ppss) obj ppss)))
 
 
 ;; Core
@@ -195,19 +209,33 @@ hide filtered string. If nil is returned, doesn't hide."
       (suggestion-box-set-obj
        (suggestion-box--tip str :truncate t)
        string
-       (or still-inside
-           (suggestion-box-get-boundary backend)))
+       (or (car still-inside)
+           (suggestion-box-get-boundary backend))
+       (or (cdr still-inside)
+           (syntax-ppss)))
       (add-hook 'post-command-hook 'suggestion-box--update nil t))))
 
 (defun suggestion-box-string-normalize (backend str)
   (suggestion-box-filter backend (suggestion-box-trim backend str)))
 
+(defun suggestion-box-inside-paren ()
+  "Return previous ppss if current ppss is different scope."
+  (when-let ((ppss (suggestion-box-get-ppss)))
+    (and (not (eq (nth 1 (syntax-ppss))
+                  (nth 1 ppss)))
+         ppss)))
+
 (defun suggestion-box-filter (backend string)
   (let* ((strs (delq nil (suggestion-box-split backend string)))
          (max (length strs))
          (nth-arg (suggestion-box-get-nth backend)))
-    (if (< max nth-arg)
-        suggestion-box-error-msg
+    (cond
+     ((not (eq (nth 1 (syntax-ppss))
+               (nth 1 (suggestion-box-get-ppss))))
+      (alist-get :inside-paren suggestion-box-messages))
+     ((< max nth-arg)
+      (alist-get :many-args suggestion-box-messages))
+     (t
       (cl-loop with count = 0
                with mask = (suggestion-box-get-mask backend)
                for s in strs
@@ -217,26 +245,32 @@ hide filtered string. If nil is returned, doesn't hide."
                else if (<= max count)
                collect (or (cdr mask) s) into result
                else collect (or (car mask) s) into result
-               finally return (mapconcat 'identity result ", ")))))
+               finally return (mapconcat 'identity result ", "))))))
 
-(defun suggestion-box-set-obj (popup-obj string boundary)
+(defun suggestion-box-set-obj (popup-obj string boundary ppss)
   (setq suggestion-box-obj
         (make-instance 'suggestion-box-data
                        :bound boundary
                        :popup popup-obj
-                       :content string)))
+                       :content string
+                       :ppss ppss)))
 
 (defun suggestion-box--update ()
-  "Delete existing popup object inside `suggestion-box-data'."
-  (when-let ((data suggestion-box-obj))
-    (when-let ((backend (suggestion-box-find-backend)))
-      (let ((bound (suggestion-box-get-bound)))
-        (cond
-         ((or (suggestion-box-close-predicate backend bound)
-              (eq 'keyboard-quit this-command))
-          (suggestion-box-reset))
-         (t (suggestion-box (suggestion-box-get-str)
-                            :still-inside (suggestion-box-get-bound))))))))
+  "Update suggestion-box.
+This function is registered to `post-command-hook' and used to
+update suggestion-box. If `suggestion-box-close-predicate'
+returns non-nil, delete current suggestion-box and registered
+function `post-command-hook'."
+  (when-let ((backend (and suggestion-box-obj
+                           (suggestion-box-find-backend))))
+    (let ((bound (suggestion-box-get-bound)))
+      (cond
+       ((or (suggestion-box-close-predicate backend bound)
+            (eq 'keyboard-quit this-command))
+        (suggestion-box-reset))
+       (t (suggestion-box (suggestion-box-get-str)
+                          :still-inside
+                          (cons bound (suggestion-box-inside-paren))))))))
 
 (defun suggestion-box-reset ()
   (suggestion-box-delete)
