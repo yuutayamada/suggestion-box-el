@@ -54,6 +54,7 @@
 (require 'cl-lib)
 (require 'subr-x) ; need Emacs 25.1 or later for `when-let' and `if-let'
 (require 'eieio)
+(require 'rx)
 
 (defgroup suggestion-box nil
   "Show information on the cursor."
@@ -159,10 +160,13 @@ hide filtered string. If nil is returned, doesn't hide."
 (defun suggestion-box-h-get-nth (sep)
   (save-excursion
     (let* ((start (suggestion-box-get-bound))
+           (r (apply `((lambda () (rx (or (eval (list 'syntax ?\))) ,sep))))))
            (count 1))
-      (while (re-search-backward sep start t)
-        (when (not (nth 8 (syntax-ppss)))
-          (setq count (1+ count))))
+      (while (re-search-backward r start t)
+        (if (eq ?\) (char-syntax (char-after (point))))
+            (goto-char (nth 1 (syntax-ppss)))
+          (when (not (nth 8 (syntax-ppss)))
+            (setq count (1+ count)))))
       count)))
 
 ;; Getters
