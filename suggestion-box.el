@@ -151,7 +151,7 @@ hide filtered string. If nil is returned, doesn't hide."
   (split-string string ", "))
 
 (cl-defmethod suggestion-box-get-nth ((_backend (eql default)))
-  (suggestion-box-h-get-nth ","))
+  (suggestion-box-h-get-nth "," 'paren))
 
 
 ;; Helper functions
@@ -165,9 +165,9 @@ hide filtered string. If nil is returned, doesn't hide."
              (when-let (end (cl-search closer string :from-end t))
                end)))
 
-(defun suggestion-box-h-get-nth (sep &optional start-pos)
+(defun suggestion-box-h-get-nth (sep start-pos)
   (save-excursion
-    (when-let ((start (if (eq 'paren (suggestion-box-get-bound))
+    (when-let ((start (if (eq 'paren start-pos)
                           (nth 1 (suggestion-box-get-ppss))
                         start-pos))
                (r (apply `((lambda () (rx (or (eval (list 'syntax ?\))) ,sep))))))
