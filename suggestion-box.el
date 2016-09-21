@@ -115,7 +115,7 @@ Return non-nil if suggestion-box need to close.
 The value of BOUNDARY is that you implemented at `suggestion-box-get-boundary'.")
 
 (cl-defgeneric suggestion-box-trim (backend string)
-  "Trim STRING.")
+  "Return trimmed string.")
 
 (cl-defgeneric suggestion-box-split (backend string)
   "Return list of string.")
