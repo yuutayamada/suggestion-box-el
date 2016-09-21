@@ -52,7 +52,6 @@
 
 (require 'popup)
 (require 'cl-lib)
-(require 'cl-generic)
 (require 'subr-x) ; need Emacs 25.1 or later for `when-let' and `if-let'
 (require 'eieio)
 
