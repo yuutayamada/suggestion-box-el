@@ -69,6 +69,11 @@
   "Face for suggestion-box's tooltip."
   :group 'suggestion-box)
 
+(defcustom suggestion-box-error-msg "too many arguments?"
+  "Message that will be showed when you enter too many arguments."
+  :group 'suggestion-box
+  :type 'string)
+
 (defclass suggestion-box-data ()
   ((bound :initarg :bound)
    (popup :type popup :initarg :popup)
@@ -175,22 +180,24 @@ hide filtered string. If nil is returned, doesn't hide.")
       (add-hook 'post-command-hook 'suggestion-box--update nil t))))
 
 (defun suggestion-box-string-normalize (backend str)
-  (suggestion-box-filter (suggestion-box-trim backend str)))
+  (suggestion-box-filter backend (suggestion-box-trim backend str)))
 
-(defun suggestion-box-filter (string)
-  (cl-loop with backend = (suggestion-box-find-backend)
-           with nth-arg = (suggestion-box-get-nth backend)
-           with strs = (delq nil (suggestion-box-split backend string))
-           with count = 0
-           with mask = (suggestion-box-get-mask backend)
-           for s in strs
-           do (setq count (1+ count))
-           if (eq count nth-arg)
-           collect s into result
-           else if (<= (length strs) count)
-           collect (or (cdr mask) s) into result
-           else collect (or (car mask) s) into result
-           finally return (mapconcat 'identity result ", ")))
+(defun suggestion-box-filter (backend string)
+  (let* ((strs (delq nil (suggestion-box-split backend string)))
+         (max (length strs))
+         (nth-arg (suggestion-box-get-nth backend)))
+    (if (< max nth-arg)
+        suggestion-box-error-msg
+      (cl-loop with count = 0
+               with mask = (suggestion-box-get-mask backend)
+               for s in strs
+               do (setq count (1+ count))
+               if (eq count nth-arg)
+               collect s into result
+               else if (<= max count)
+               collect (or (cdr mask) s) into result
+               else collect (or (car mask) s) into result
+               finally return (mapconcat 'identity result ", ")))))
 
 (defun suggestion-box-set-obj (popup-obj string boundary)
   (setq suggestion-box-obj
