@@ -72,6 +72,9 @@
   "Face for suggestion-box's tooltip."
   :group 'suggestion-box)
 
+
+
+;;; Variables
 (defcustom suggestion-box-messages
   '((:many-args    . "too many arguments?")
     (:inside-paren . "_"))
@@ -202,6 +205,7 @@ hide filtered string. If nil is returned, doesn't hide."
   (when-let ((obj suggestion-box-obj))
     (with-slots (ppss) obj ppss)))
 
+
 
 ;; Core
 
@@ -233,10 +237,13 @@ hide filtered string. If nil is returned, doesn't hide."
 (defun suggestion-box-filter (backend string)
   (let* ((strs (delq nil (suggestion-box-split backend string)))
          (max (length strs))
-         (nth-arg (suggestion-box-get-nth backend)))
+         (nth-arg (suggestion-box-get-nth backend))
+         (inside-paren
+          ;; FIXME: using `suggestion-box-inside-paren' here doesn't work
+          (not (eq (nth 1 (syntax-ppss))
+                   (nth 1 (suggestion-box-get-ppss))))))
     (cond
-     ((not (eq (nth 1 (syntax-ppss))
-               (nth 1 (suggestion-box-get-ppss))))
+     (inside-paren
       (alist-get :inside-paren suggestion-box-messages))
      ((< max nth-arg)
       (alist-get :many-args suggestion-box-messages))
