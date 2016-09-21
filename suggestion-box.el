@@ -74,6 +74,11 @@
   :group 'suggestion-box
   :type 'string)
 
+(defcustom suggestion-box-default-masks (cons "." "?")
+  "Default masks."
+  :group 'suggestion-box
+  :type (cons 'string 'string))
+
 (defclass suggestion-box-data ()
   ((bound :initarg :bound)
    (popup :type popup :initarg :popup)
@@ -118,9 +123,10 @@ The value of BOUNDARY is that you implemented at `suggestion-box-get-boundary'."
 (cl-defgeneric suggestion-box-get-nth (backend)
   "Return a number, which represent Nth's arg.")
 
-(cl-defgeneric suggestion-box-get-mask (backend)
+(cl-defgeneric suggestion-box-get-mask (_backend)
   "Return cons of strings or nil. Both car and cdr parts are used to
-hide filtered string. If nil is returned, doesn't hide.")
+hide filtered string. If nil is returned, doesn't hide."
+  suggestion-box-default-masks)
 
 
 
@@ -150,10 +156,6 @@ hide filtered string. If nil is returned, doesn't hide.")
         (when (not (nth 8 (syntax-ppss)))
           (setq count (1+ count))))
       count)))
-
-(cl-defmethod suggestion-box-get-mask ((_backend (eql default)))
-  (cons "." "?"))
-
 
 ;; Getters
 (defun suggestion-box-get-popup ()
