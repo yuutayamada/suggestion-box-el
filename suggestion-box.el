@@ -47,7 +47,6 @@
 ;;; Code:
 
 ;; TODO:
-;;  - escape comma inside strings
 ;;  - minor-mode?
 
 (require 'popup)
@@ -143,8 +142,13 @@ hide filtered string. If nil is returned, doesn't hide.")
   (split-string string ", "))
 
 (cl-defmethod suggestion-box-get-nth ((_backend (eql default)))
-  (let ((start (nth 1 (syntax-ppss))))
-    (length (split-string (buffer-substring start (point)) ",") )))
+  (save-excursion
+    (let* ((start (suggestion-box-get-bound))
+           (count 1))
+      (while (re-search-backward "," start t)
+        (when (not (nth 8 (syntax-ppss)))
+          (setq count (1+ count))))
+      count)))
 
 (cl-defmethod suggestion-box-get-mask ((_backend (eql default)))
   (cons "." "?"))
