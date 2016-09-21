@@ -48,6 +48,7 @@
 
 ;; TODO:
 ;;  - minor-mode?
+;;  - use eldoc's displayed data?
 
 (require 'popup)
 (require 'cl-lib)
@@ -129,7 +130,7 @@ hide filtered string. If nil is returned, doesn't hide.")
   (nth 1 (syntax-ppss)))
 
 (cl-defmethod suggestion-box-close-predicate ((_backend (eql default)) boundary)
-  (not (eq boundary (nth 1 (syntax-ppss)))))
+  (not (memq boundary (nth 9 (syntax-ppss)))))
 
 (cl-defmethod suggestion-box-trim ((_backend (eql default)) string)
   (substring string
@@ -172,7 +173,7 @@ hide filtered string. If nil is returned, doesn't hide.")
 ;; Core
 
 ;;;###autoload
-(defun suggestion-box (string)
+(cl-defun suggestion-box (string &key still-inside)
   "Show STRING on the cursor."
   (when-let ((backend (and string (suggestion-box-find-backend))))
     (when-let ((str (suggestion-box-string-normalize backend string)))
@@ -180,7 +181,8 @@ hide filtered string. If nil is returned, doesn't hide.")
       (suggestion-box-set-obj
        (suggestion-box--tip str :truncate t)
        string
-       (suggestion-box-get-boundary backend))
+       (or still-inside
+           (suggestion-box-get-boundary backend)))
       (add-hook 'post-command-hook 'suggestion-box--update nil t))))
 
 (defun suggestion-box-string-normalize (backend str)
@@ -214,14 +216,18 @@ hide filtered string. If nil is returned, doesn't hide.")
   "Delete existing popup object inside `suggestion-box-data'."
   (when-let ((data suggestion-box-obj))
     (when-let ((backend (suggestion-box-find-backend)))
-      (if (not (or (suggestion-box-close-predicate
-                    backend (suggestion-box-get-bound))
-                   (eq 'keyboard-quit this-command)))
-          ;; TODO: add highlight current argument
-          (suggestion-box (suggestion-box-get-str))
-        ;; Delete popup obj
-        (suggestion-box-delete)
-        (remove-hook 'post-command-hook 'suggestion-box--update t)))))
+      (let ((bound (suggestion-box-get-bound)))
+        (cond
+         ((or (suggestion-box-close-predicate backend bound)
+              (eq 'keyboard-quit this-command))
+          (suggestion-box-reset))
+         (t (suggestion-box (suggestion-box-get-str)
+                            :still-inside (suggestion-box-get-bound))))))))
+
+(defun suggestion-box-reset ()
+  (suggestion-box-delete)
+  (setq suggestion-box-obj nil)
+  (remove-hook 'post-command-hook 'suggestion-box--update t))
 
 (defun suggestion-box-delete ()
   "Delete suggestion-box."
