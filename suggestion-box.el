@@ -139,20 +139,28 @@ hide filtered string. If nil is returned, doesn't hide."
   (not (memq boundary (nth 9 (syntax-ppss)))))
 
 (cl-defmethod suggestion-box-trim ((_backend (eql default)) string)
-  (substring string
-             (when-let ((start (cl-search "(" string)))
-               (1+ start))
-             (when-let (end (cl-search ")" string :from-end t))
-               end)))
+  (suggestion-box-h-trim string "(" ")"))
 
 (cl-defmethod suggestion-box-split ((_backend (eql default)) string)
   (split-string string ", "))
 
 (cl-defmethod suggestion-box-get-nth ((_backend (eql default)))
+  (suggestion-box-h-get-nth ","))
+
+
+;; Helper functions
+(defun suggestion-box-h-trim (string opener closer)
+  (substring string
+             (when-let ((start (cl-search opener string)))
+               (1+ start))
+             (when-let (end (cl-search closer string :from-end t))
+               end)))
+
+(defun suggestion-box-h-get-nth (sep)
   (save-excursion
     (let* ((start (suggestion-box-get-bound))
            (count 1))
-      (while (re-search-backward "," start t)
+      (while (re-search-backward sep start t)
         (when (not (nth 8 (syntax-ppss)))
           (setq count (1+ count))))
       count)))
