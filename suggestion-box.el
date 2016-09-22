@@ -84,23 +84,22 @@
 
 
 ;;; Variables
-(defcustom suggestion-box-messages
+(defvar suggestion-box-messages
   '((:many-args    . "too many arguments?")
-    (:inside-paren . "_"))
-  "Messages that occasionally pop up"
-  :group 'suggestion-box
-  :type 'string)
+    (:inside-paren . "_")))
 
-(defcustom suggestion-box-default-masks (cons "." "?")
-  "Default masks."
-  :group 'suggestion-box
-  :type (cons 'string 'string))
+(defvar suggestion-box-masks
+  '((:mask1        . ".")
+    (:mask2        . "?")))
 
+;;; for internal use only
 (defclass suggestion-box-data ()
   ((bound   :initarg :bound)
    (popup   :initarg :popup   :type popup)
    (content :initarg :content :type string)
-   (ppss    :initarg :ppss))
+   (ppss    :initarg :ppss)
+   (mask1   :initarg :mask1)
+   (mask2   :initarg :mask2))
   :documentation "wip")
 
 (defvar suggestion-box-obj nil
@@ -128,47 +127,45 @@ generic functions.")
   (when suggestion-box-obj
     (slot-value suggestion-box-obj name)))
 
-(cl-defgeneric suggestion-box-close-predicate (backend bound)
-  "Predicate function that returns non-nil if suggestion-box needs to close.
-The value of BOUND is that you will be implemented at `suggestion-box-get-boundary'.")
 
-(cl-defgeneric suggestion-box-trim (backend string)
-  "Return trimmed string.")
-
-(cl-defgeneric suggestion-box-split (backend string)
-  "Return list of string.")
-
-(cl-defgeneric suggestion-box-get-nth (backend)
-  "Return a number, which represent Nth's arg.")
-
+(cl-defgeneric suggestion-box-normalize (backend string)
+  "Return normalized string.")
 
 ;; Those generic functions can be optional to implement
 (cl-defgeneric suggestion-box-get-boundary (_backend)
   "Return something to indicate boundary to delete suggestion-box later."
   'paren)
 
-(cl-defgeneric suggestion-box-get-mask (_backend)
-  "Return cons of strings or nil. Both car and cdr parts are used to
-hide filtered string. If nil is returned, doesn't hide."
-  suggestion-box-default-masks)
+(cl-defgeneric suggestion-box-close-predicate (backend bound)
+  "Predicate function that returns non-nil if suggestion-box needs to close.
+The value of BOUND is that you will be implemented at `suggestion-box-get-boundary'.")
+
+
+;; For less configuration
+(cl-defmethod suggestion-box-close-predicate (_backend (_bound (eql paren)))
+  "Return non-nil if current cursor is outside of parenthesis.
+In here, the parenthesis means syntax table's.
+See also https://www.emacswiki.org/emacs/EmacsSyntaxTable.
+The point of parenthesis is registered when you invoke
+`suggestion-box' at once and reuse them til suggestion-box is disappeared."
+  (not (suggestion-box-h-inside-paren-p)))
 
 
 
 ;;; Default backend
 
-(cl-defmethod suggestion-box-close-predicate ((_backend (eql default)) _bound)
-  (not (suggestion-box-h-inside-paren-p)))
+;; Note: below default backend stuff may be moved to nim-mode
+;; repository. (after this package registered MELPA) and will rename
+;; `default' backend to `nim' (or something similar)
 
-(cl-defmethod suggestion-box-trim ((_backend (eql default)) string)
-  (suggestion-box-h-trim string "(" ")"))
-
-(cl-defmethod suggestion-box-split ((_backend (eql default)) string)
-  (split-string string ", "))
-
-(cl-defmethod suggestion-box-get-nth ((_backend (eql default)))
-  (suggestion-box-h-get-nth "," 'paren))
+(cl-defmethod suggestion-box-normalize ((_backend (eql default)) string)
+  "Return normalized string."
+  (suggestion-box-h-filter (suggestion-box-h-trim string "(" ")")
+                           (lambda (str) (split-string str ", "))
+                           (suggestion-box-h-get-nth "," 'paren)))
 
 
+
 ;; Helper functions
 (defun suggestion-box-h-inside-paren-p ()
   (memq (nth 1 (suggestion-box-get 'ppss)) (nth 9 (syntax-ppss))))
@@ -199,6 +196,28 @@ hide filtered string. If nil is returned, doesn't hide."
               (setq count (1+ count))))))
       count)))
 
+(defun suggestion-box-h-filter (string split-func nth-arg)
+  (let* ((strs (delq nil (funcall split-func string)))
+         (max (length strs))
+         (nth-arg nth-arg))
+    (cond
+     ((suggestion-box--inside-paren-p)
+      (alist-get :inside-paren suggestion-box-messages))
+     ((< max nth-arg)
+      (alist-get :many-args suggestion-box-messages))
+     (t
+      (cl-loop with count = 0
+               with mask1 = (suggestion-box-get 'mask1)
+               with mask2 = (suggestion-box-get 'mask2)
+               for s in strs
+               do (setq count (1+ count))
+               if (eq count nth-arg)
+               collect s into result
+               else if (<= max count)
+               collect (or mask2 s) into result
+               else collect (or mask1 s) into result
+               finally return (mapconcat 'identity result ", "))))))
+
 
 
 ;; Core
@@ -207,7 +226,7 @@ hide filtered string. If nil is returned, doesn't hide."
 (cl-defun suggestion-box (string &key still-inside)
   "Show STRING on the cursor."
   (when-let ((backend (and string (suggestion-box-find-backend))))
-    (when-let ((str (suggestion-box--normalize backend string)))
+    (when-let ((str (suggestion-box-normalize backend string)))
       (suggestion-box--delete)
       (suggestion-box--set-obj
        (suggestion-box--tip str :truncate t)
@@ -218,33 +237,9 @@ hide filtered string. If nil is returned, doesn't hide."
            (syntax-ppss)))
       (add-hook 'post-command-hook 'suggestion-box--update nil t))))
 
-(defun suggestion-box--normalize (backend str)
-  (suggestion-box--filter backend (suggestion-box-trim backend str)))
-
 (defun suggestion-box--inside-paren-p ()
   (not (eq (nth 1 (syntax-ppss))
            (nth 1 (suggestion-box-get 'ppss)))))
-
-(defun suggestion-box--filter (backend string)
-  (let* ((strs (delq nil (suggestion-box-split backend string)))
-         (max (length strs))
-         (nth-arg (suggestion-box-get-nth backend)))
-    (cond
-     ((suggestion-box--inside-paren-p)
-      (alist-get :inside-paren suggestion-box-messages))
-     ((< max nth-arg)
-      (alist-get :many-args suggestion-box-messages))
-     (t
-      (cl-loop with count = 0
-               with mask = (suggestion-box-get-mask backend)
-               for s in strs
-               do (setq count (1+ count))
-               if (eq count nth-arg)
-               collect s into result
-               else if (<= max count)
-               collect (or (cdr mask) s) into result
-               else collect (or (car mask) s) into result
-               finally return (mapconcat 'identity result ", "))))))
 
 (defun suggestion-box--set-obj (popup-obj string boundary ppss)
   (setq suggestion-box-obj
@@ -252,7 +247,9 @@ hide filtered string. If nil is returned, doesn't hide."
                        :bound boundary
                        :popup popup-obj
                        :content string
-                       :ppss ppss)))
+                       :ppss ppss
+                       :mask1 (alist-get :mask1 suggestion-box-masks)
+                       :mask2 (alist-get :mask2 suggestion-box-masks))))
 
 (defun suggestion-box--update ()
   "Update suggestion-box.
