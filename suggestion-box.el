@@ -88,10 +88,10 @@
   :type (cons 'string 'string))
 
 (defclass suggestion-box-data ()
-  ((bound :initarg :bound)
-   (popup :type popup :initarg :popup)
-   (content :type string :initarg :content)
-   (ppss :initarg :ppss))
+  ((bound   :initarg :bound)
+   (popup   :initarg :popup   :type popup)
+   (content :initarg :content :type string)
+   (ppss    :initarg :ppss))
   :documentation "wip")
 
 (defvar suggestion-box-obj nil
