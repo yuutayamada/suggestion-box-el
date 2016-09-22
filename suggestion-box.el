@@ -245,13 +245,13 @@ The point of parenthesis is registered when you invoke
 
 (defun suggestion-box--set-obj (popup-obj string boundary ppss)
   (setq suggestion-box-obj
-        (make-instance 'suggestion-box-data
-                       :bound boundary
-                       :popup popup-obj
-                       :content string
-                       :ppss ppss
-                       :mask1 (alist-get :mask1 suggestion-box-masks)
-                       :mask2 (alist-get :mask2 suggestion-box-masks))))
+        (suggestion-box-data
+         :bound boundary
+         :popup popup-obj
+         :content string
+         :ppss ppss
+         :mask1 (alist-get :mask1 suggestion-box-masks)
+         :mask2 (alist-get :mask2 suggestion-box-masks))))
 
 (defun suggestion-box--update ()
   "Update suggestion-box.
