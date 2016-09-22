@@ -116,8 +116,11 @@ and should return either nil to mean that it is not applicable,
 or an suggestion-box backend, which is a value to be used to dispatch the
 generic functions.")
 
-(defun suggestion-box--general-backend () 'default)
-(add-hook 'suggestion-box-backend-functions #'suggestion-box--general-backend t)
+(defun suggestion-box--official-backends ()
+  (when (memq major-mode '(nim-mode nimscript-mode))
+    'nim))
+
+(add-hook 'suggestion-box-backend-functions #'suggestion-box--official-backends t)
 
 ;;;###autoload
 (defun suggestion-box-find-backend ()
@@ -152,13 +155,12 @@ The point of parenthesis is registered when you invoke
 
 
 
-;;; Default backend
+;;; nim-mode backend
 
-;; Note: below default backend stuff may be moved to nim-mode
-;; repository. (after this package registered MELPA) and will rename
-;; `default' backend to `nim' (or something similar)
+;; Note: below nim backend stuff may be moved to nim-mode
+;; repository. (after this package registered MELPA).
 
-(cl-defmethod suggestion-box-normalize ((_backend (eql default)) string)
+(cl-defmethod suggestion-box-normalize ((_backend (eql nim)) string)
   "Return normalized string."
   (suggestion-box-h-filter (suggestion-box-h-trim string "(" ")")
                            (lambda (str) (split-string str ", "))
