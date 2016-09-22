@@ -22,6 +22,15 @@
 
 ;;; Commentary:
 
+;; Note: this package is still early stage. I'm going to
+;; support [nim-mode](https://github.com/nim-lang/nim-mode) first and
+;; then other programming major-modes.
+;;
+;; If your nim-mode merged this PR (https://github.com/nim-lang/nim-mode/pull/138)
+;; and you already configured nimsuggest, you can use suggestion-box
+;; without configuration.
+;;
+;;
 ;; This package is more or less for major-mode maintainers who want to
 ;; show type information on the cursor and currently only tested on
 ;; nim-mode (https://github.com/nim-lang/nim-mode).
@@ -29,9 +38,9 @@
 ;; The tooltip will be placed above on the current cursor, so most of
 ;; the time, the tooltip doesn't destruct your auto-completion result.
 
-;; How to use:
+;; How to implement:
 ;;
-;; if you just want to show type information after company-mode's
+;; if you want to show type information after company-mode's
 ;; :post-completion or :exit-function for `completion-at-point',
 ;; you may implement something like this:
 ;;
@@ -43,12 +52,12 @@
 ;;                         (backward-char 1)
 ;;                         (suggestion-box TYPE-INFO)))
 ;;     )
-
+;;
+;;
+;; But, I might change API to reduce defgeneric/defmethod stuff, so
+;; please keep in mind this package isn't stable yet.
+;;
 ;;; Code:
-
-;; TODO:
-;;  - minor-mode?
-;;  - use eldoc's displayed data?
 
 (require 'popup)
 (require 'cl-lib)
