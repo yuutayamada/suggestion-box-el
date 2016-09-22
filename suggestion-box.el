@@ -207,9 +207,9 @@ hide filtered string. If nil is returned, doesn't hide."
 (cl-defun suggestion-box (string &key still-inside)
   "Show STRING on the cursor."
   (when-let ((backend (and string (suggestion-box-find-backend))))
-    (when-let ((str (suggestion-box-string-normalize backend string)))
-      (suggestion-box-delete)
-      (suggestion-box-set-obj
+    (when-let ((str (suggestion-box--normalize backend string)))
+      (suggestion-box--delete)
+      (suggestion-box--set-obj
        (suggestion-box--tip str :truncate t)
        string
        (or (car still-inside)
@@ -218,19 +218,19 @@ hide filtered string. If nil is returned, doesn't hide."
            (syntax-ppss)))
       (add-hook 'post-command-hook 'suggestion-box--update nil t))))
 
-(defun suggestion-box-string-normalize (backend str)
-  (suggestion-box-filter backend (suggestion-box-trim backend str)))
+(defun suggestion-box--normalize (backend str)
+  (suggestion-box--filter backend (suggestion-box-trim backend str)))
 
-(defun suggestion-box-inside-paren-p ()
+(defun suggestion-box--inside-paren-p ()
   (not (eq (nth 1 (syntax-ppss))
            (nth 1 (suggestion-box-get 'ppss)))))
 
-(defun suggestion-box-filter (backend string)
+(defun suggestion-box--filter (backend string)
   (let* ((strs (delq nil (suggestion-box-split backend string)))
          (max (length strs))
          (nth-arg (suggestion-box-get-nth backend)))
     (cond
-     ((suggestion-box-inside-paren-p)
+     ((suggestion-box--inside-paren-p)
       (alist-get :inside-paren suggestion-box-messages))
      ((< max nth-arg)
       (alist-get :many-args suggestion-box-messages))
@@ -246,7 +246,7 @@ hide filtered string. If nil is returned, doesn't hide."
                else collect (or (car mask) s) into result
                finally return (mapconcat 'identity result ", "))))))
 
-(defun suggestion-box-set-obj (popup-obj string boundary ppss)
+(defun suggestion-box--set-obj (popup-obj string boundary ppss)
   (setq suggestion-box-obj
         (make-instance 'suggestion-box-data
                        :bound boundary
@@ -266,19 +266,19 @@ function `post-command-hook'."
       (cond
        ((or (suggestion-box-close-predicate backend bound)
             (eq 'keyboard-quit this-command))
-        (suggestion-box-reset))
+        (suggestion-box--reset))
        (t (suggestion-box (suggestion-box-get 'content)
                           :still-inside
                           (cons bound
-                                (and (suggestion-box-inside-paren-p)
+                                (and (suggestion-box--inside-paren-p)
                                      (suggestion-box-get 'ppss)))))))))
 
-(defun suggestion-box-reset ()
-  (suggestion-box-delete)
+(defun suggestion-box--reset ()
+  (suggestion-box--delete)
   (setq suggestion-box-obj nil)
   (remove-hook 'post-command-hook 'suggestion-box--update t))
 
-(defun suggestion-box-delete ()
+(defun suggestion-box--delete ()
   "Delete suggestion-box."
   (when-let ((p (suggestion-box-get 'popup)))
     (popup-delete p)))
