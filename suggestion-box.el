@@ -256,7 +256,7 @@ The point of parenthesis is registered when you invoke
 This function is registered to `post-command-hook' and used to
 update suggestion-box. If `suggestion-box-close-predicate'
 returns non-nil, delete current suggestion-box and registered
-function `post-command-hook'."
+function in `post-command-hook'."
   (when-let ((backend (and suggestion-box-obj
                            (suggestion-box-find-backend))))
     (let ((bound (suggestion-box-get 'bound)))
