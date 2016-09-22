@@ -221,23 +221,16 @@ hide filtered string. If nil is returned, doesn't hide."
 (defun suggestion-box-string-normalize (backend str)
   (suggestion-box-filter backend (suggestion-box-trim backend str)))
 
-(defun suggestion-box-inside-paren ()
-  "Return previous ppss if current ppss is different scope."
-  (when-let ((ppss (suggestion-box-get 'ppss)))
-    (and (not (eq (nth 1 (syntax-ppss))
-                  (nth 1 ppss)))
-         ppss)))
+(defun suggestion-box-inside-paren-p ()
+  (not (eq (nth 1 (syntax-ppss))
+           (nth 1 (suggestion-box-get 'ppss)))))
 
 (defun suggestion-box-filter (backend string)
   (let* ((strs (delq nil (suggestion-box-split backend string)))
          (max (length strs))
-         (nth-arg (suggestion-box-get-nth backend))
-         (inside-paren
-          ;; FIXME: using `suggestion-box-inside-paren' here doesn't work
-          (not (eq (nth 1 (syntax-ppss))
-                   (nth 1 (suggestion-box-get 'ppss))))))
+         (nth-arg (suggestion-box-get-nth backend)))
     (cond
-     (inside-paren
+     ((suggestion-box-inside-paren-p)
       (alist-get :inside-paren suggestion-box-messages))
      ((< max nth-arg)
       (alist-get :many-args suggestion-box-messages))
@@ -276,7 +269,9 @@ function `post-command-hook'."
         (suggestion-box-reset))
        (t (suggestion-box (suggestion-box-get 'content)
                           :still-inside
-                          (cons bound (suggestion-box-inside-paren))))))))
+                          (cons bound
+                                (and (suggestion-box-inside-paren-p)
+                                     (suggestion-box-get 'ppss)))))))))
 
 (defun suggestion-box-reset ()
   (suggestion-box-delete)
