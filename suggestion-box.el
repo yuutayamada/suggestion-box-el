@@ -162,7 +162,7 @@ The point of parenthesis is registered when you invoke
   "Return normalized string."
   (suggestion-box-h-filter (suggestion-box-h-trim string "(" ")")
                            (lambda (str) (split-string str ", "))
-                           (suggestion-box-h-get-nth "," 'paren)))
+                           (suggestion-box-h-compute-nth "," 'paren)))
 
 
 
@@ -177,7 +177,7 @@ The point of parenthesis is registered when you invoke
              (when-let (end (cl-search closer string :from-end t))
                end)))
 
-(defun suggestion-box-h-get-nth (sep start-pos)
+(defun suggestion-box-h-compute-nth (sep start-pos)
   (save-excursion
     (when-let ((start (if (eq 'paren start-pos)
                           (nth 1 (suggestion-box-get 'ppss))
