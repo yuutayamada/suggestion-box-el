@@ -82,11 +82,30 @@
   :group 'suggestion-box)
 
 (defclass suggestion-box-data ()
-  ((bound   :initarg :bound)
-   (popup   :initarg :popup)
-   (content :initarg :content :type string)
-   (ppss    :initarg :ppss))
+  ((bound   :initarg :bound)  ; you can store any data
+   (popup   :initarg :popup)  ; popup object or nil
+   (content :initarg :content
+            :type string)
+   (ppss    :initarg :ppss)   ; `syntax-ppss'
+   (backend :initarg :backend))
   :documentation "wip")
+
+(defclass suggestion-box-embed-data ()
+  ((backend :initarg :backend)
+   (handler :initarg :handler)
+   (data    :initarg :data
+            :allow-nil-initform t))
+  :documentation "wip")
+
+(defun suggestion-box-embed-p (text-obj)
+  (when-let ((obj (suggestion-box-get-embed-text text-obj)))
+    (eq 'suggestion-box-embed-data (eieio-object-class obj))))
+
+(defun suggestion-box-get-embed-text (text-obj)
+  (get-text-property 0 :suggestion-box text-obj))
+
+(cl-deftype suggestion-box-embed ()
+  '(satisfies suggestion-box-embed-p))
 
 (defvar suggestion-box-obj nil
   "Internal variable to store popup object and other properties.")
@@ -103,8 +122,7 @@ or an suggestion-box backend, which is a value to be used to dispatch the
 generic functions.")
 
 (defun suggestion-box--supported-backends ()
-  (when (memq major-mode '(nim-mode nimscript-mode))
-    'nim))
+  nil)
 
 (add-hook 'suggestion-box-backend-functions #'suggestion-box--supported-backends t)
 
@@ -117,8 +135,11 @@ generic functions.")
     (slot-value suggestion-box-obj name)))
 
 
-(cl-defgeneric suggestion-box-normalize (backend string)
-  "Return normalized string.")
+(cl-defgeneric suggestion-box-normalize (_backend string)
+  "Return normalized string."
+  (cl-typecase string
+    (suggestion-box-embed
+     (suggestion-box-h-embed-normalize string))))
 
 ;; Those generic functions can be optional to implement
 (cl-defgeneric suggestion-box-save-boundary (_backend)
@@ -218,37 +239,70 @@ The point of parenthesis is registered when you invoke
              else collect (or mask1 s) into result
              finally return (mapconcat 'identity result sep)))))
 
+(defun suggestion-box-h-embed-normalize (res)
+  (with-slots (backend handler data) (suggestion-box-get-embed-text res)
+    (cond ((and (functionp handler) data)
+           (funcall handler data))
+          ((and backend data)
+           (list :backend backend
+                 :content (suggestion-box-normalize backend data)))
+          (backend
+           (list :backend backend
+                 :content (suggestion-box-normalize backend res)))
+          (t (error "suggestion-box-h-embed-normalize: something wrong")))))
+
 
 
 ;; Core
 
 ;;;###autoload
-(cl-defun suggestion-box (string &key still-inside)
+(cl-defun suggestion-box (string &key still-inside &aux backend embed-str)
   "Show STRING on the cursor."
-  (when-let ((backend (and string (suggestion-box-find-backend))))
-    (when-let ((res (suggestion-box-normalize backend string)))
-      (suggestion-box--delete)
-      (suggestion-box--set-obj
-       (unless (eq 'ignore res)
-         (suggestion-box--tip res :truncate t))
-       string
-       (or (car still-inside)
-           (suggestion-box-save-boundary backend))
-       (or (cdr still-inside)
-           (syntax-ppss)))
-      (add-hook 'post-command-hook 'suggestion-box--update nil t))))
+  (setq backend (and string (suggestion-box-find-backend)))
+  (when-let ((res (suggestion-box-normalize backend string)))
+    (when (listp res)
+      (setq backend (plist-get res :backend)
+            embed-str (plist-get res :content)))
+    (suggestion-box--init
+     :string string
+     :res (or embed-str res)
+     :backend backend
+     :still-inside still-inside)))
+
+;;;###autoload
+(cl-defun suggestion-box-put (text &key backend handler data)
+  (put-text-property
+   0 1
+   :suggestion-box
+   (suggestion-box-embed-data
+    :backend backend :handler handler :data data)
+   text))
+
+(cl-defun suggestion-box--init (&key string res still-inside backend)
+  (suggestion-box--delete)
+  (suggestion-box--set-obj
+   (unless (eq 'ignore res)
+     (suggestion-box--tip res :truncate t))
+   string
+   (or (car still-inside)
+       (suggestion-box-save-boundary backend))
+   (or (cdr still-inside)
+       (syntax-ppss))
+   backend)
+  (add-hook 'post-command-hook 'suggestion-box--update nil t))
 
 (defun suggestion-box--inside-paren-p ()
   (not (eq (nth 1 (syntax-ppss))
            (nth 1 (suggestion-box-get 'ppss)))))
 
-(defun suggestion-box--set-obj (popup-obj string boundary ppss)
+(defun suggestion-box--set-obj (popup-obj string boundary ppss backend)
   (setq suggestion-box-obj
         (suggestion-box-data
          :bound boundary
          :popup popup-obj
          :content string
-         :ppss ppss)))
+         :ppss ppss
+         :backend backend)))
 
 (defun suggestion-box--update ()
   "Update suggestion-box.
@@ -256,13 +310,14 @@ This function is registered to `post-command-hook' and used to
 update suggestion-box. If `suggestion-box-close-predicate'
 returns non-nil, delete current suggestion-box and registered
 function in `post-command-hook'."
-  (when-let ((backend (and suggestion-box-obj
-                           (suggestion-box-find-backend))))
+  (when-let ((backend (suggestion-box-get 'backend)))
     (let ((bound (suggestion-box-get 'bound)))
       (cond
+       ;; Close suggestion-box
        ((or (suggestion-box-close-predicate backend bound)
             (eq 'keyboard-quit this-command))
         (suggestion-box--reset))
+       ;; Update suggestion-box
        (t (suggestion-box (suggestion-box-get 'content)
                           :still-inside
                           (cons bound
