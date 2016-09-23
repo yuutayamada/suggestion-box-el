@@ -88,18 +88,13 @@
   '((:many-args    . "too many arguments?")
     (:inside-paren . "_")))
 
-(defvar suggestion-box-masks
-  '((:mask1        . ".")
-    (:mask2        . "?")))
 
 ;;; for internal use only
 (defclass suggestion-box-data ()
   ((bound   :initarg :bound)
    (popup   :initarg :popup   :type popup)
    (content :initarg :content :type string)
-   (ppss    :initarg :ppss)
-   (mask1   :initarg :mask1)
-   (mask2   :initarg :mask2))
+   (ppss    :initarg :ppss))
   :documentation "wip")
 
 (defvar suggestion-box-obj nil
@@ -166,7 +161,7 @@ The point of parenthesis is registered when you invoke
    (suggestion-box-h-trim string "(" ")")
    (lambda (str) (split-string str ", "))
    (suggestion-box-h-compute-nth "," 'paren)
-   ""))
+   "" :mask1 "" :mask2 ""))
 
 
 
@@ -200,7 +195,7 @@ The point of parenthesis is registered when you invoke
               (setq count (1+ count))))))
       count)))
 
-(defun suggestion-box-h-filter (string split-func nth-arg sep)
+(cl-defun suggestion-box-h-filter (string split-func nth-arg sep &key mask1 mask2)
   (let* ((strs (delq nil (funcall split-func string)))
          (max (length strs))
          (nth-arg nth-arg))
@@ -211,8 +206,6 @@ The point of parenthesis is registered when you invoke
       (alist-get :many-args suggestion-box-messages))
      (t
       (cl-loop with count = 0
-               with mask1 = (suggestion-box-get 'mask1)
-               with mask2 = (suggestion-box-get 'mask2)
                for s in strs
                do (setq count (1+ count))
                if (eq count nth-arg)
@@ -251,9 +244,7 @@ The point of parenthesis is registered when you invoke
          :bound boundary
          :popup popup-obj
          :content string
-         :ppss ppss
-         :mask1 (alist-get :mask1 suggestion-box-masks)
-         :mask2 (alist-get :mask2 suggestion-box-masks))))
+         :ppss ppss)))
 
 (defun suggestion-box--update ()
   "Update suggestion-box.
