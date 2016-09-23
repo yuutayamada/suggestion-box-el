@@ -130,8 +130,20 @@ generic functions.")
   "Return normalized string.")
 
 ;; Those generic functions can be optional to implement
-  "Return something to indicate boundary to delete suggestion-box later."
 (cl-defgeneric suggestion-box-save-boundary (_backend)
+  "Return something to indicate boundary to delete suggestion-box later.
+This function is called only one time when you make a suggestion-box and
+the returning value is used until the suggestion-box is deleted.
+
+If the returning value was `paren', which is default value,
+`suggestion-box-close-predicate' will adhere to syntax table's
+parenthesis to close the suggestion-box meaning when the cursor
+is outside of original (nth 1 ppss) the suggestion-box will be
+closed immediately.
+
+Note that if you want to use `paren', you must start
+`suggestion-box' inside parenthesis, otherwise this program can
+not calculate correct point."
   'paren)
 
 (cl-defgeneric suggestion-box-close-predicate (backend bound)
