@@ -162,9 +162,11 @@ The point of parenthesis is registered when you invoke
 
 (cl-defmethod suggestion-box-normalize ((_backend (eql nim)) string)
   "Return normalized string."
-  (suggestion-box-h-filter (suggestion-box-h-trim string "(" ")")
-                           (lambda (str) (split-string str ", "))
-                           (suggestion-box-h-compute-nth "," 'paren)))
+  (suggestion-box-h-filter
+   (suggestion-box-h-trim string "(" ")")
+   (lambda (str) (split-string str ", "))
+   (suggestion-box-h-compute-nth "," 'paren)
+   ""))
 
 
 
@@ -198,7 +200,7 @@ The point of parenthesis is registered when you invoke
               (setq count (1+ count))))))
       count)))
 
-(defun suggestion-box-h-filter (string split-func nth-arg)
+(defun suggestion-box-h-filter (string split-func nth-arg sep)
   (let* ((strs (delq nil (funcall split-func string)))
          (max (length strs))
          (nth-arg nth-arg))
@@ -218,7 +220,7 @@ The point of parenthesis is registered when you invoke
                else if (<= max count)
                collect (or mask2 s) into result
                else collect (or mask1 s) into result
-               finally return (mapconcat 'identity result ", "))))))
+               finally return (mapconcat 'identity result sep))))))
 
 
 
