@@ -81,17 +81,9 @@
   "Face for suggestion-box's tooltip."
   :group 'suggestion-box)
 
-
-
-;;; Variables
-(defvar suggestion-box-messages
-  '((:inside-paren . "_")))
-
-
-;;; for internal use only
 (defclass suggestion-box-data ()
   ((bound   :initarg :bound)
-   (popup   :initarg :popup   :type popup)
+   (popup   :initarg :popup)
    (content :initarg :content :type string)
    (ppss    :initarg :ppss))
   :documentation "wip")
@@ -212,7 +204,7 @@ The point of parenthesis is registered when you invoke
         max (length strs))
   (cond
    ((suggestion-box--inside-paren-p)
-    (alist-get :inside-paren suggestion-box-messages))
+    'ignore)
    ((< max nth-arg)
     (or many-arg "too many arguments?"))
    (t
@@ -234,10 +226,11 @@ The point of parenthesis is registered when you invoke
 (cl-defun suggestion-box (string &key still-inside)
   "Show STRING on the cursor."
   (when-let ((backend (and string (suggestion-box-find-backend))))
-    (when-let ((str (suggestion-box-normalize backend string)))
+    (when-let ((res (suggestion-box-normalize backend string)))
       (suggestion-box--delete)
       (suggestion-box--set-obj
-       (suggestion-box--tip str :truncate t)
+       (unless (eq 'ignore res)
+         (suggestion-box--tip res :truncate t))
        string
        (or (car still-inside)
            (suggestion-box-save-boundary backend))
