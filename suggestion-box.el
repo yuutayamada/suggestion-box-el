@@ -116,11 +116,11 @@ and should return either nil to mean that it is not applicable,
 or an suggestion-box backend, which is a value to be used to dispatch the
 generic functions.")
 
-(defun suggestion-box--official-backends ()
+(defun suggestion-box--supported-backends ()
   (when (memq major-mode '(nim-mode nimscript-mode))
     'nim))
 
-(add-hook 'suggestion-box-backend-functions #'suggestion-box--official-backends t)
+(add-hook 'suggestion-box-backend-functions #'suggestion-box--supported-backends t)
 
 ;;;###autoload
 (defun suggestion-box-find-backend ()
