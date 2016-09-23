@@ -167,13 +167,13 @@ The point of parenthesis is registered when you invoke
 ;; Note: below nim backend stuff may be moved to nim-mode
 ;; repository. (after this package registered MELPA).
 
-(cl-defmethod suggestion-box-normalize ((_backend (eql nim)) string)
+(cl-defmethod suggestion-box-normalize ((_backend (eql nim)) raw-str)
   "Return normalized string."
   (suggestion-box-h-filter
-   (suggestion-box-h-trim string "(" ")")
-   (lambda (str) (split-string str ", "))
-   (suggestion-box-h-compute-nth "," 'paren)
-   "" :mask1 "" :mask2 ""))
+   :content    (suggestion-box-h-trim raw-str "(" ")")
+   :split-func (lambda (content) (split-string content ", "))
+   :nth-arg    (suggestion-box-h-compute-nth "," 'paren)
+   :sep "" :mask1 "" :mask2 ""))
 
 
 
@@ -207,25 +207,25 @@ The point of parenthesis is registered when you invoke
               (setq count (1+ count))))))
       count)))
 
-(cl-defun suggestion-box-h-filter (string split-func nth-arg sep &key mask1 mask2)
-  (let* ((strs (delq nil (funcall split-func string)))
-         (max (length strs))
-         (nth-arg nth-arg))
-    (cond
-     ((suggestion-box--inside-paren-p)
-      (alist-get :inside-paren suggestion-box-messages))
-     ((< max nth-arg)
-      (alist-get :many-args suggestion-box-messages))
-     (t
-      (cl-loop with count = 0
-               for s in strs
-               do (setq count (1+ count))
-               if (eq count nth-arg)
-               collect s into result
-               else if (<= max count)
-               collect (or mask2 s) into result
-               else collect (or mask1 s) into result
-               finally return (mapconcat 'identity result sep))))))
+(cl-defun suggestion-box-h-filter
+    (&key content split-func nth-arg sep mask1 mask2 &aux strs max)
+  (setq strs (delq nil (funcall split-func content))
+        max (length strs))
+  (cond
+   ((suggestion-box--inside-paren-p)
+    (alist-get :inside-paren suggestion-box-messages))
+   ((< max nth-arg)
+    (alist-get :many-args suggestion-box-messages))
+   (t
+    (cl-loop with count = 0
+             for s in strs
+             do (setq count (1+ count))
+             if (eq count nth-arg)
+             collect s into result
+             else if (<= max count)
+             collect (or mask2 s) into result
+             else collect (or mask1 s) into result
+             finally return (mapconcat 'identity result sep)))))
 
 
 
