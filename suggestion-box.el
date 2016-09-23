@@ -85,8 +85,7 @@
 
 ;;; Variables
 (defvar suggestion-box-messages
-  '((:many-args    . "too many arguments?")
-    (:inside-paren . "_")))
+  '((:inside-paren . "_")))
 
 
 ;;; for internal use only
@@ -208,14 +207,14 @@ The point of parenthesis is registered when you invoke
       count)))
 
 (cl-defun suggestion-box-h-filter
-    (&key content split-func nth-arg sep mask1 mask2 &aux strs max)
+    (&key content split-func nth-arg sep mask1 mask2 many-arg &aux strs max)
   (setq strs (delq nil (funcall split-func content))
         max (length strs))
   (cond
    ((suggestion-box--inside-paren-p)
     (alist-get :inside-paren suggestion-box-messages))
    ((< max nth-arg)
-    (alist-get :many-args suggestion-box-messages))
+    (or many-arg "too many arguments?"))
    (t
     (cl-loop with count = 0
              for s in strs
