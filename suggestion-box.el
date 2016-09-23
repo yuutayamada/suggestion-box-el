@@ -130,13 +130,13 @@ generic functions.")
   "Return normalized string.")
 
 ;; Those generic functions can be optional to implement
-(cl-defgeneric suggestion-box-get-boundary (_backend)
   "Return something to indicate boundary to delete suggestion-box later."
+(cl-defgeneric suggestion-box-save-boundary (_backend)
   'paren)
 
 (cl-defgeneric suggestion-box-close-predicate (backend bound)
   "Predicate function that returns non-nil if suggestion-box needs to close.
-The value of BOUND is that you will be implemented at `suggestion-box-get-boundary'.")
+The value of BOUND is that you will be implemented at `suggestion-box-save-boundary'.")
 
 
 ;; For less configuration
@@ -229,7 +229,7 @@ The point of parenthesis is registered when you invoke
        (suggestion-box--tip str :truncate t)
        string
        (or (car still-inside)
-           (suggestion-box-get-boundary backend))
+           (suggestion-box-save-boundary backend))
        (or (cdr still-inside)
            (syntax-ppss)))
       (add-hook 'post-command-hook 'suggestion-box--update nil t))))
