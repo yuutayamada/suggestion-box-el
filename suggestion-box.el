@@ -234,8 +234,8 @@ The point of parenthesis is registered when you invoke
              else collect (or mask1 s) into result
              finally return (mapconcat 'identity result sep)))))
 
-(defun suggestion-box-h-embed-normalize (res)
-  (with-slots (backend handler data) (suggestion-box-get-embed-text res)
+(defun suggestion-box-h-embed-normalize (text-obj)
+  (with-slots (backend handler data) (suggestion-box-get-embed-text text-obj)
     (cond ((and (functionp handler) data)
            (funcall handler data))
           (backend
