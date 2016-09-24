@@ -14,31 +14,86 @@ result. (hopefully)
 
 ![suggestion-box](https://cloud.githubusercontent.com/assets/1082473/18650134/3246c024-7e78-11e6-8e8b-4fb7d832495f.gif)
 
-## How to implement (for package maintainers):
+## Tutorial
 
-If you want to show type information after company-mode's
-:post-completion or :exit-function for `completion-at-point',
-you may implement something like this:
+- Step1: format string
 
 ``` lisp
+(progn
+(require 'suggestion-box)
 
-   (defun xxx-completion-at-point ()
-      ... ; do something
-     ;; you can find information about :exit-function by `completion-extra-properties'
-     :exit-function (lambda (string status)
-                      (if STRING-IS-FUNCTION ; predicate whether check the string is function
-                         (insert "()")
-                         (backward-char 1)
-                         ;; the TYPE-INFO is string, which you want to show it
-                         ;; on the cursor
-                         (suggestion-box TYPE-INFO)))
-     )
+(cl-defmethod suggestion-box-normalize ((_backend (eql test)) raw-str)
+   (format "foo %s bar" raw-str))
+
+(let ((str "string"))
+  (suggestion-box-put str :backend 'test)
+  (insert "()")
+  (backward-char 1)
+  (suggestion-box str))) <- you can C-x C-e after the close parenthesis and
+                            this will popup "foo string bar" on the cursor.
 
 ```
 
-As a side note, you might want to use this package without :exit-function or
-company-mode's :post-completion, but I didn't do it because showing
-popup unconditionally were too annoying. So I don't recommend.
+- Step2: more complex logic (work in progress)
+  this is just example of nim-mode. Basically Nim's type signature is
+  like this: "proc (a: string, b: int) {.gcsafe.}" and below
+  configuration strip annoying part (outside of parenthesis).
+  Output example: "a: string" if cursor is inside 1th arg's position.
+
+``` lisp
+(cl-defmethod suggestion-box-normalize ((_backend (eql nim)) raw-str)
+  "Return normalized string."
+  (suggestion-box-h-filter
+   :content    (suggestion-box-h-trim raw-str "(" ")")
+   :split-func (lambda (content) (split-string content ", "))
+   :nth-arg    (suggestion-box-h-compute-nth "," 'paren)
+   :sep "" :mask1 "" :mask2 ""))
+```
+
+- Step3: work with company-capf backend (work in progress)
+  here is what I did in nim-mode:
+
+``` lisp
+(defcustom nim-capf-after-exit-function-hook 'nimsuggest-after-exit-function
+  "A hook that is called with an argument.
+The argument is string that has some properties."
+  :type 'hook
+  :group 'nim)
+
+(defun nimsuggest-after-exit-function (str)
+  "Default function that is called after :exit-function is called.
+The STR is string that has several property you can utilize."
+  (when-let ((type (and str (get-text-property 0 :nim-type str))))
+    (suggestion-box-put type :backend 'nim)
+    (suggestion-box type)))
+
+;; note I simplified this function because it was too long
+(defun nim-capf-nimsuggest-completion-at-point ()
+  (list beg end (completion-table-with-cache 'nim-capf--nimsuggest-complete)
+    ;; ... some properties ...
+    :exit-function #'nim-capf--exit-function))
+
+(defun nim-capf--exit-function (str status)
+  "Insert necessary things for STR, when completion is done.
+You may see information about STATUS at `completion-extra-properties'.
+But, for some reason, currently this future is only supporting
+company-mode.  See also: https://github.com/company-mode/company-mode/issues/583"
+  (unless (eq 'completion-at-point this-command)
+    (cl-case status
+      ;; finished -- completion was finished and there is no other completion
+      ;; sole -- completion was finished and there is/are other completion(s)
+      ((finished sole)
+       (when-let ((type-sig (get-text-property 0 :nim-sig str)))
+         (cl-case (intern type-sig)
+           ((f T) ; <- this means current completion was function or
+                  ;    template, which needs "()"
+            (insert "()")
+            (backward-char 1)
+            (run-hook-with-args 'nim-capf-after-exit-function-hook str)))))
+      (t
+       ;; let other completion backends
+       (setq this-command 'self-insert-command)))))
+```
 
 ## License
 GPLv3 License
