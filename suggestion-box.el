@@ -172,7 +172,7 @@
 (cl-deftype suggestion-box-embed ()
   '(satisfies suggestion-box-embed-p))
 
-(defvar suggestion-box-obj nil
+(defvar suggestion-box--obj nil
   "Internal variable to store popup object and other properties.")
 
 
@@ -193,8 +193,8 @@ generic functions.")
 
 (defun suggestion-box-get (name)
   "Get NAME's property of `suggestion-box-data' class."
-  (when suggestion-box-obj
-    (slot-value suggestion-box-obj name)))
+  (when suggestion-box--obj
+    (slot-value suggestion-box--obj name)))
 
 
 (cl-defgeneric suggestion-box-normalize (_backend string)
@@ -402,7 +402,7 @@ See also `suggestion-box-h-embed-normalize' function for more example."
   "Set properties to suggestion-box-obj.
 POPUP-OBJ, STRING, BOUNDARY, PPSS, and BACKEND, are all properties of
 `suggestion-box-data' class."
-  (setq suggestion-box-obj
+  (setq suggestion-box--obj
         (suggestion-box-data
          :bound boundary
          :popup popup-obj
@@ -435,7 +435,7 @@ function in `post-command-hook'."
 (defun suggestion-box--reset ()
   "Reset."
   (suggestion-box--delete)
-  (setq suggestion-box-obj nil)
+  (setq suggestion-box--obj nil)
   (remove-hook 'post-command-hook 'suggestion-box--update t))
 
 (defun suggestion-box--delete ()
