@@ -248,18 +248,10 @@ The point of parenthesis is registered when you invoke
 ;; Core
 
 ;;;###autoload
-(cl-defun suggestion-box (string &key still-inside &aux backend embed-str)
-  "Show STRING on the cursor."
-  (setq backend (and string (suggestion-box-find-backend)))
-  (when-let ((res (suggestion-box-normalize backend string)))
-    (when (listp res)
-      (setq backend (plist-get res :backend)
-            embed-str (plist-get res :content)))
-    (suggestion-box--init
-     :string string
-     :res (or embed-str res)
-     :backend backend
-     :still-inside still-inside)))
+(defun suggestion-box (string)
+  "Show convenience information on the cursor."
+  (let ((backend (suggestion-box-find-backend)))
+    (and string (suggestion-box--core string backend))))
 
 ;;;###autoload
 (cl-defun suggestion-box-put (text &key backend handler data)
@@ -269,6 +261,17 @@ The point of parenthesis is registered when you invoke
    (suggestion-box-embed-data
     :backend backend :handler handler :data data)
    text))
+
+(cl-defun suggestion-box--core (string backend &key still-inside &aux embed-str)
+  (when-let ((res (suggestion-box-normalize backend string)))
+    (when (listp res)
+      (setq backend (plist-get res :backend)
+            embed-str (plist-get res :content)))
+    (suggestion-box--init
+     :string string
+     :res (or embed-str res)
+     :backend backend
+     :still-inside still-inside)))
 
 (cl-defun suggestion-box--init (&key string res still-inside backend)
   (suggestion-box--delete)
@@ -310,11 +313,13 @@ function in `post-command-hook'."
             (eq 'keyboard-quit this-command))
         (suggestion-box--reset))
        ;; Update suggestion-box
-       (t (suggestion-box (suggestion-box-get 'content)
-                          :still-inside
-                          (cons bound
-                                (and (suggestion-box--inside-paren-p)
-                                     (suggestion-box-get 'ppss)))))))))
+       (t (suggestion-box--core
+           (suggestion-box-get 'content)
+           backend
+           :still-inside
+           (cons bound
+                 (and (suggestion-box--inside-paren-p)
+                      (suggestion-box-get 'ppss)))))))))
 
 (defun suggestion-box--reset ()
   (suggestion-box--delete)
