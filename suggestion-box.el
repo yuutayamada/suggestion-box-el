@@ -230,7 +230,7 @@ The value of BOUND is that you will be implemented at `suggestion-box-save-bound
 ;; For less configuration
 (cl-defmethod suggestion-box-close-predicate (_backend (_bound (eql paren)))
   "Return non-nil if current cursor is outside of parenthesis.
-In here, the parenthesis means syntax table's.
+In here, the parenthesis mean syntax table's.
 See also https://www.emacswiki.org/emacs/EmacsSyntaxTable.
 The point of parenthesis is registered when you invoke
 `suggestion-box' at once and reuse them til suggestion-box is disappeared."
@@ -297,9 +297,10 @@ will stop if the search is crossed the START-POS."
 You can specify following keywords:
 
 :content    -- a string
-:split-func -- split function to split the string of :content keyword
-:nth-arg    -- This number is used to decide nth argument.
-:sep        -- separator string
+:split-func -- split function that takes one argument to split
+               the string of :content keyword
+:nth-arg    -- number; this number is used to decide nth argument.
+:sep        -- separator string to join split strings
 :mask1      -- string or nil; you can mask previous word before nth's word
 :mask2      -- string or nil; you can mask next word after nth's word
 :many-arg   -- string that will be showed when you input too many argument (optional)"
