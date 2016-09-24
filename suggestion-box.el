@@ -22,7 +22,7 @@
 
 ;;; Commentary:
 
-;; Note: this package is still early stage. I'm going to
+;; Note: this package is still early stage.  I'm going to
 ;; support [nim-mode](https://github.com/nim-lang/nim-mode) first and
 ;; then other programming major-modes.
 ;;
@@ -42,7 +42,7 @@
 
 ;; - Step1: format string
 
-;; ``` lisp
+;; ----------------
 ;; (progn
 ;; (require 'suggestion-box)
 
@@ -56,15 +56,15 @@
 ;;   (suggestion-box str))) <- you can C-x C-e after the close parenthesis and
 ;;                             this will popup "foo string bar" on the cursor.
 
-;; ```
+;; ----------------
 
 ;; - Step2: more complex logic (work in progress)
-;;   this is just example of nim-mode. Basically Nim's type signature is
+;;   this is just example of nim-mode.  Basically Nim's type signature is
 ;;   like this: "proc (a: string, b: int) {.gcsafe.}" and below
 ;;   configuration strip annoying part (outside of parenthesis).
 ;;   Output example: "a: string" if cursor is inside 1th arg's position.
 
-;; ``` lisp
+;; ----------------
 ;; (cl-defmethod suggestion-box-normalize ((_backend (eql nim)) raw-str)
 ;;   "Return normalized string."
 ;;   (suggestion-box-h-filter
@@ -72,12 +72,13 @@
 ;;    :split-func (lambda (content) (split-string content ", "))
 ;;    :nth-arg    (suggestion-box-h-compute-nth "," 'paren)
 ;;    :sep "" :mask1 "" :mask2 ""))
-;; ```
+;; ----------------
+
 
 ;; - Step3: work with company-capf backend (work in progress)
 ;;   here is what I did in nim-mode:
 
-;; ``` lisp
+;; ----------------
 ;; (defcustom nim-capf-after-exit-function-hook 'nimsuggest-after-exit-function
 ;;   "A hook that is called with an argument.
 ;; The argument is string that has some properties."
@@ -117,7 +118,7 @@
 ;;       (t
 ;;        ;; let other completion backends
 ;;        (setq this-command 'self-insert-command)))))
-;; ```
+;; ----------------
 ;;
 ;;; Code:
 
@@ -187,7 +188,7 @@ generic functions.")
 
 ;;;###autoload
 (defun suggestion-box-find-backend ()
-  "Find backend available backend. See also `suggestion-box-backend-functions'."
+  "Find backend available backend.  See also `suggestion-box-backend-functions'."
   (run-hook-with-args-until-success 'suggestion-box-backend-functions))
 
 (defun suggestion-box-get (name)
@@ -267,7 +268,7 @@ The point of parenthesis is registered when you invoke
 
 (defun suggestion-box-h-compute-nth (sep start-pos)
   "Return number of nth argument.
-The SEP is separator string. In most computer languages, maybe
+The SEP is separator string.  In most computer languages, maybe
 it's enough to just specify a \",\" to count the nth.
 The START-POS is the start position of boundary. The calculation
 will stop if the search is crossed the START-POS."
@@ -323,7 +324,7 @@ You can specify following keywords:
 (defun suggestion-box-h-embed-normalize (text-obj)
   "Return a following form's list:
 
-(:backend backend-symbol :content normalized-string)
+ (:backend backend-symbol :content normalized-string)
 
 The TEXT-OBJ has to be matched to `suggestion-box-embed-data'
 class/type.
@@ -341,7 +342,7 @@ Example:
           (backend
            (list :backend backend
                  :content (suggestion-box-normalize backend (or data text-obj))))
-          (t (error "suggestion-box-h-embed-normalize: something wrong")))))
+          (t (error "Missing some text properties")))))
 
 
 
@@ -392,10 +393,14 @@ See also `suggestion-box-h-embed-normalize' function for more example."
   (add-hook 'post-command-hook 'suggestion-box--update nil t))
 
 (defun suggestion-box--inside-paren-p ()
+  "Return non-nil if current scope is not originally started scope."
   (not (eq (nth 1 (syntax-ppss))
            (nth 1 (suggestion-box-get 'ppss)))))
 
 (defun suggestion-box--set-obj (popup-obj string boundary ppss backend)
+  "Set properties to suggestion-box-obj.
+POPUP-OBJ, STRING, BOUNDARY, PPSS, and BACKEND, are all properties of
+`suggestion-box-data' class."
   (setq suggestion-box-obj
         (suggestion-box-data
          :bound boundary
@@ -407,7 +412,7 @@ See also `suggestion-box-h-embed-normalize' function for more example."
 (defun suggestion-box--update ()
   "Update suggestion-box.
 This function is registered to `post-command-hook' and used to
-update suggestion-box. If `suggestion-box-close-predicate'
+update suggestion-box.  If `suggestion-box-close-predicate'
 returns non-nil, delete current suggestion-box and registered
 function in `post-command-hook'."
   (when-let ((backend (suggestion-box-get 'backend)))
@@ -427,6 +432,7 @@ function in `post-command-hook'."
                       (suggestion-box-get 'ppss)))))))))
 
 (defun suggestion-box--reset ()
+  "Reset."
   (suggestion-box--delete)
   (setq suggestion-box-obj nil)
   (remove-hook 'post-command-hook 'suggestion-box--update t))
