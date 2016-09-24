@@ -150,20 +150,22 @@
             :type string)
    (ppss    :initarg :ppss)   ; `syntax-ppss'
    (backend :initarg :backend))
-  :documentation "wip")
+  :documentation "`suggestion-box-data' type.")
 
 (defclass suggestion-box-embed-data ()
   ((backend :initarg :backend)
    (handler :initarg :handler)
    (data    :initarg :data
             :allow-nil-initform t))
-  :documentation "wip")
+  :documentation "`suggestion-box-embed-data' type")
 
 (defun suggestion-box-embed-p (text-obj)
+  "Return non-nil if TEXT-OBJ is `suggestion-box-embed-data' class."
   (when-let ((obj (suggestion-box-get-embed-text text-obj)))
     (eq 'suggestion-box-embed-data (eieio-object-class obj))))
 
 (defun suggestion-box-get-embed-text (text-obj)
+  "Return :suggestion-box property from TEXT-OBJ."
   (get-text-property 0 :suggestion-box text-obj))
 
 (cl-deftype suggestion-box-embed ()
@@ -185,15 +187,19 @@ generic functions.")
 
 ;;;###autoload
 (defun suggestion-box-find-backend ()
+  "Find backend available backend. See also `suggestion-box-backend-functions'."
   (run-hook-with-args-until-success 'suggestion-box-backend-functions))
 
 (defun suggestion-box-get (name)
+  "Get NAME's property of `suggestion-box-data' class."
   (when suggestion-box-obj
     (slot-value suggestion-box-obj name)))
 
 
 (cl-defgeneric suggestion-box-normalize (_backend string)
-  "Return normalized string."
+  "Return normalized string from STRING.
+You can pass normal string to STRING, but you can also pass text
+propertied string. See also `suggestion-box-h-embed-normalize'."
   (cl-typecase string
     (suggestion-box-embed
      (suggestion-box-h-embed-normalize string))))
@@ -248,9 +254,11 @@ The point of parenthesis is registered when you invoke
 
 ;; Helper functions
 (defun suggestion-box-h-inside-paren-p ()
+  "Return non-nil if current point is still inside parenthesis."
   (memq (nth 1 (suggestion-box-get 'ppss)) (nth 9 (syntax-ppss))))
 
 (defun suggestion-box-h-trim (string opener closer)
+  "Trim STRING that is enclosed OPENER and CLOSER."
   (substring string
              (when-let ((start (cl-search opener string)))
                (1+ start))
@@ -258,6 +266,11 @@ The point of parenthesis is registered when you invoke
                end)))
 
 (defun suggestion-box-h-compute-nth (sep start-pos)
+  "Return number of nth argument.
+The SEP is separator string. In most computer languages, maybe
+it's enough to just specify a \",\" to count the nth.
+The START-POS is the start position of boundary. The calculation
+will stop if the search is crossed the START-POS."
   (save-excursion
     (when-let ((start (if (eq 'paren start-pos)
                           (nth 1 (suggestion-box-get 'ppss))
@@ -278,6 +291,17 @@ The point of parenthesis is registered when you invoke
 
 (cl-defun suggestion-box-h-filter
     (&key content split-func nth-arg sep mask1 mask2 many-arg &aux strs max)
+  "Helper function to return prettier string.
+
+You can specify following keywords:
+
+:content    -- a string
+:split-func -- split function to split the string of :content keyword
+:nth-arg    -- This number is used to decide nth argument.
+:sep        -- separator string
+:mask1      -- string or nil; you can mask previous word before nth's word
+:mask2      -- string or nil; you can mask next word after nth's word
+:many-arg   -- string that will be showed when you input too many argument (optional)"
   (setq strs (delq nil (funcall split-func content))
         max (length strs))
   (cond
@@ -297,11 +321,14 @@ The point of parenthesis is registered when you invoke
              finally return (mapconcat 'identity result sep)))))
 
 (defun suggestion-box-h-embed-normalize (text-obj)
-  "Return list of (:backend backend-name :content normalized-string).
+  "Return a following form's list:
+
+(:backend backend-symbol :content normalized-string)
+
 The TEXT-OBJ has to be matched to `suggestion-box-embed-data'
 class/type.
 
-The typical usage is putting backend name to your TEXT-OBJ, so
+The typical usage is putting backend symbol to your TEXT-OBJ, so
 you can handle the TEXT-OBJ by your specified backend.
 
 Example:
@@ -318,17 +345,21 @@ Example:
 
 
 
-;; Core
+;;; Core
 
 ;;;###autoload
 (defun suggestion-box (string)
   "Show convenience information on the cursor.
-The STRING can be put text property.  See also `suggestion-box-h-embed-normalize'."
+The argument STRING can be string or text propertied string.
+See also `suggestion-box-h-embed-normalize' for more example."
   (let ((backend (suggestion-box-find-backend)))
     (and string (suggestion-box--core string backend))))
 
 ;;;###autoload
 (cl-defun suggestion-box-put (text &key backend handler data)
+  "Put text property to TEXT object.
+You can use :backend, :handler, and :data keywords to add property.
+See also `suggestion-box-h-embed-normalize' function for more example."
   (put-text-property
    0 1
    :suggestion-box
