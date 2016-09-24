@@ -12,7 +12,7 @@ The tooltip will be placed above on the current cursor, so most of
 the time, the tooltip doesn't destruct your auto-completion
 result. (hopefully)
 
-![suggestion-box](https://cloud.githubusercontent.com/assets/1082473/18650134/3246c024-7e78-11e6-8e8b-4fb7d832495f.gif)
+![suggestion-box](https://cloud.githubusercontent.com/assets/1082473/18810060/49ceac58-8241-11e6-9d4a-bc22d0844fec.gif)
 
 ## Tutorial
 
