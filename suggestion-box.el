@@ -238,12 +238,9 @@ The point of parenthesis is registered when you invoke
   (with-slots (backend handler data) (suggestion-box-get-embed-text res)
     (cond ((and (functionp handler) data)
            (funcall handler data))
-          ((and backend data)
-           (list :backend backend
-                 :content (suggestion-box-normalize backend data)))
           (backend
            (list :backend backend
-                 :content (suggestion-box-normalize backend res)))
+                 :content (suggestion-box-normalize backend (or data text-obj))))
           (t (error "suggestion-box-h-embed-normalize: something wrong")))))
 
 
