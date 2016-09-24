@@ -150,12 +150,15 @@
    (content :initarg :content
             :type string)
    (ppss    :initarg :ppss)   ; `syntax-ppss'
-   (backend :initarg :backend))
+   (backend :initarg :backend
+            :type symbol))
   :documentation "`suggestion-box-data' type.")
 
 (defclass suggestion-box-embed-data ()
-  ((backend :initarg :backend)
-   (handler :initarg :handler)
+  ((backend :initarg :backend
+            :type symbol)
+   (handler :initarg :handler
+            :allow-nil-initform t)
    (data    :initarg :data
             :allow-nil-initform t))
   :documentation "`suggestion-box-embed-data' type")
