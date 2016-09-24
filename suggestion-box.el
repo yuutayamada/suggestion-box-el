@@ -38,24 +38,86 @@
 ;; The tooltip will be placed above on the current cursor, so most of
 ;; the time, the tooltip doesn't destruct your auto-completion result.
 
-;; How to implement:
-;;
-;; if you want to show type information after company-mode's
-;; :post-completion or :exit-function for `completion-at-point',
-;; you may implement something like this:
-;;
-;;   (defun xxx-completion-at-point ()
-;;      ... ; do something
-;;     :exit-function (lambda (string status)
-;;                      (if STRING-IS-FUNCTION
-;;                         (insert "()")
-;;                         (backward-char 1)
-;;                         (suggestion-box TYPE-INFO)))
-;;     )
-;;
-;;
-;; But, I might change API to reduce defgeneric/defmethod stuff, so
-;; please keep in mind this package isn't stable yet.
+;; ## Tutorial
+
+;; - Step1: format string
+
+;; ``` lisp
+;; (progn
+;; (require 'suggestion-box)
+
+;; (cl-defmethod suggestion-box-normalize ((_backend (eql test)) raw-str)
+;;    (format "foo %s bar" raw-str))
+
+;; (let ((str "string"))
+;;   (suggestion-box-put str :backend 'test)
+;;   (insert "()")
+;;   (backward-char 1)
+;;   (suggestion-box str))) <- you can C-x C-e after the close parenthesis and
+;;                             this will popup "foo string bar" on the cursor.
+
+;; ```
+
+;; - Step2: more complex logic (work in progress)
+;;   this is just example of nim-mode. Basically Nim's type signature is
+;;   like this: "proc (a: string, b: int) {.gcsafe.}" and below
+;;   configuration strip annoying part (outside of parenthesis).
+;;   Output example: "a: string" if cursor is inside 1th arg's position.
+
+;; ``` lisp
+;; (cl-defmethod suggestion-box-normalize ((_backend (eql nim)) raw-str)
+;;   "Return normalized string."
+;;   (suggestion-box-h-filter
+;;    :content    (suggestion-box-h-trim raw-str "(" ")")
+;;    :split-func (lambda (content) (split-string content ", "))
+;;    :nth-arg    (suggestion-box-h-compute-nth "," 'paren)
+;;    :sep "" :mask1 "" :mask2 ""))
+;; ```
+
+;; - Step3: work with company-capf backend (work in progress)
+;;   here is what I did in nim-mode:
+
+;; ``` lisp
+;; (defcustom nim-capf-after-exit-function-hook 'nimsuggest-after-exit-function
+;;   "A hook that is called with an argument.
+;; The argument is string that has some properties."
+;;   :type 'hook
+;;   :group 'nim)
+
+;; (defun nimsuggest-after-exit-function (str)
+;;   "Default function that is called after :exit-function is called.
+;; The STR is string that has several property you can utilize."
+;;   (when-let ((type (and str (get-text-property 0 :nim-type str))))
+;;     (suggestion-box-put type :backend 'nim)
+;;     (suggestion-box type)))
+
+;; ;; note I simplified this function because it was too long
+;; (defun nim-capf-nimsuggest-completion-at-point ()
+;;   (list beg end (completion-table-with-cache 'nim-capf--nimsuggest-complete)
+;;     ;; ... some properties ...
+;;     :exit-function #'nim-capf--exit-function))
+
+;; (defun nim-capf--exit-function (str status)
+;;   "Insert necessary things for STR, when completion is done.
+;; You may see information about STATUS at `completion-extra-properties'.
+;; But, for some reason, currently this future is only supporting
+;; company-mode.  See also: https://github.com/company-mode/company-mode/issues/583"
+;;   (unless (eq 'completion-at-point this-command)
+;;     (cl-case status
+;;       ;; finished -- completion was finished and there is no other completion
+;;       ;; sole -- completion was finished and there is/are other completion(s)
+;;       ((finished sole)
+;;        (when-let ((type-sig (get-text-property 0 :nim-sig str)))
+;;          (cl-case (intern type-sig)
+;;            ((f T) ; <- this means current completion was function or
+;;                   ;    template, which needs "()"
+;;             (insert "()")
+;;             (backward-char 1)
+;;             (run-hook-with-args 'nim-capf-after-exit-function-hook str)))))
+;;       (t
+;;        ;; let other completion backends
+;;        (setq this-command 'self-insert-command)))))
+;; ```
 ;;
 ;;; Code:
 
@@ -235,6 +297,17 @@ The point of parenthesis is registered when you invoke
              finally return (mapconcat 'identity result sep)))))
 
 (defun suggestion-box-h-embed-normalize (text-obj)
+  "Return list of (:backend backend-name :content normalized-string).
+The TEXT-OBJ has to be matched to `suggestion-box-embed-data'
+class/type.
+
+The typical usage is putting backend name to your TEXT-OBJ, so
+you can handle the TEXT-OBJ by your specified backend.
+
+Example:
+
+    (suggestion-box-put TEXT-OBJ :backend 'your-backend)
+    (suggestion-box TEXT-OBJ)"
   (with-slots (backend handler data) (suggestion-box-get-embed-text text-obj)
     (cond ((and (functionp handler) data)
            (funcall handler data))
@@ -249,7 +322,8 @@ The point of parenthesis is registered when you invoke
 
 ;;;###autoload
 (defun suggestion-box (string)
-  "Show convenience information on the cursor."
+  "Show convenience information on the cursor.
+The STRING can be put text property.  See also `suggestion-box-h-embed-normalize'."
   (let ((backend (suggestion-box-find-backend)))
     (and string (suggestion-box--core string backend))))
 
