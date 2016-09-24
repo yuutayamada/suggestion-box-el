@@ -1,4 +1,8 @@
 # Suggestion-box.el
+[melpa-link]: http://melpa.org/#/suggestion-box
+[melpa-badge]: http://melpa.org/packages/suggestion-box-badge.svg
+[![melpa badge][melpa-badge]][melpa-link]
+[![Build Status](https://travis-ci.org/yuutayamada/suggestion-box-el.svg?branch=master)](https://travis-ci.org/yuutayamada/suggestion-box-el)
 
 Show tooltip on the cursor with convenient information
 
