@@ -10,6 +10,8 @@ Note: this package is still early stage. I'm going to
 support [nim-mode](https://github.com/nim-lang/nim-mode) first and
 then other programming major-modes.
 
+You can see the instruction in [suggestion-box-nim](https://github.com/yuutayamada/suggestion-box-nim-el)
+
 ## GIF
 
 The tooltip will be placed above on the current cursor, so most of
