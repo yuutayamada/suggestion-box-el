@@ -25,12 +25,10 @@
 ;; Note: this package is still early stage.  I'm going to
 ;; support [nim-mode](https://github.com/nim-lang/nim-mode) first and
 ;; then other programming major-modes.
-;;
-;; If your nim-mode merged this PR (https://github.com/nim-lang/nim-mode/pull/138)
-;; and you already configured nimsuggest, you can use suggestion-box
-;; without configuration.
-;;
-;;
+
+;; You can see the instruction here:
+;;  https://github.com/yuutayamada/suggestion-box-nim-el
+
 ;; This package is more or less for major-mode maintainers who want to
 ;; show type information on the cursor and currently only tested on
 ;; nim-mode (https://github.com/nim-lang/nim-mode).
@@ -238,21 +236,6 @@ See also https://www.emacswiki.org/emacs/EmacsSyntaxTable.
 The point of parenthesis is registered when you invoke
 `suggestion-box' at once and reuse them til suggestion-box is disappeared."
   (not (suggestion-box-h-inside-paren-p)))
-
-
-
-;;; nim-mode backend
-
-;; Note: below nim backend stuff may be moved to nim-mode
-;; repository. (after this package registered MELPA).
-
-(cl-defmethod suggestion-box-normalize ((_backend (eql nim)) raw-str)
-  "Return normalized string."
-  (suggestion-box-h-filter
-   :content    (suggestion-box-h-trim raw-str "(" ")")
-   :split-func (lambda (content) (split-string content ", "))
-   :nth-arg    (suggestion-box-h-compute-nth "," 'paren)
-   :sep "" :mask1 "" :mask2 ""))
 
 
 
