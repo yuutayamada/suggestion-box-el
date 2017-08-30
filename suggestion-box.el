@@ -1,6 +1,6 @@
 ;;; suggestion-box.el --- show tooltip on the cursor -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2016  Yuta Yamada
+;; Copyright (C) 2017  Yuta Yamada
 
 ;; Author: Yuta Yamada <cokesboy"at"gmail.com>
 ;; Keywords: convenience
@@ -458,6 +458,34 @@ function in `post-command-hook'."
               (popup-set-list tip lines)
               (popup-draw tip)
               tip))))))
+
+
+;;; Nim
+(cl-defmethod suggestion-box-normalize ((_backend (eql nim)) raw-str)
+  "Return normalized string."
+  (suggestion-box-h-filter
+   :content    (suggestion-box-h-trim raw-str "(" ")")
+   :split-func (lambda (content) (split-string content ", "))
+   :nth-arg    (+ (or (suggestion-box-h-compute-nth "," 'paren) 0)
+                  (suggestion-box-nim-compute-offset))
+   :sep "" :mask1 "" :mask2 ""))
+
+(defun suggestion-box-nim-compute-offset ()
+  "Return offset.
+Nim use uniform function call, so need to calculate the offset of nth argument."
+  ;; https://en.wikipedia.org/wiki/Uniform_Function_Call_Syntax
+  (save-excursion
+    (goto-char (nth 1 (syntax-ppss))) ; go to beginning of "("
+    ;; if "." + Nim identifier
+    (if (looking-back "\\.[A-Za-z-ÿ]\\(?:_\\|[A-Za-z-ÿ]\\|[[:digit:]]\\)*+" nil)
+        1
+      0)))
+
+(defun suggestion-box-nim-by-type (str)
+  "Make suggestion-box for STR."
+  (when-let ((type (and str (get-text-property 0 :nim-type str))))
+    (suggestion-box-put type :backend 'nim)
+    (suggestion-box type)))
 
 
 (provide 'suggestion-box)
